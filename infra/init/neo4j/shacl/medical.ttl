@@ -1,0 +1,112 @@
+@prefix sh:    <http://www.w3.org/ns/shacl#> .
+@prefix yaip:  <https://yaip.io/ontology#> .
+@prefix xsd:   <http://www.w3.org/2001/XMLSchema#> .
+@prefix rdf:   <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix rdfs:  <http://www.w3.org/2000/01/rdf-schema#> .
+
+# ─────────────────────────────────────────────────────────────────────
+# Y-AIP SHACL Shapes — Medical Domain
+# Loaded into Neo4j via: CALL n10s.validation.shacl.import.fetch(...)
+# ─────────────────────────────────────────────────────────────────────
+
+# ── Patient ───────────────────────────────────────────────────────────
+
+yaip:PatientShape
+    a sh:NodeShape ;
+    sh:targetClass yaip:Patient ;
+    sh:closed false ;
+
+    sh:property [
+        sh:path yaip:mrn ;
+        sh:name "Medical Record Number" ;
+        sh:description "Unique patient identifier" ;
+        sh:minCount 1 ;
+        sh:maxCount 1 ;
+        sh:datatype xsd:string ;
+        sh:minLength 6 ;
+    ] ;
+
+    sh:property [
+        sh:path yaip:date_of_birth ;
+        sh:name "Date of Birth" ;
+        sh:minCount 1 ;
+        sh:maxCount 1 ;
+        sh:datatype xsd:date ;
+    ] ;
+
+    sh:property [
+        sh:path yaip:classification ;
+        sh:name "Data Classification" ;
+        sh:minCount 1 ;
+        sh:in ( "CUI" "SECRET" ) ;  # Patient records are at minimum CUI
+        sh:message "Patient records must be classified CUI or higher" ;
+    ] .
+
+# ── Encounter ─────────────────────────────────────────────────────────
+
+yaip:EncounterShape
+    a sh:NodeShape ;
+    sh:targetClass yaip:Encounter ;
+
+    sh:property [
+        sh:path yaip:encounter_id ;
+        sh:minCount 1 ;
+        sh:maxCount 1 ;
+        sh:datatype xsd:string ;
+    ] ;
+
+    sh:property [
+        sh:path yaip:patient ;
+        sh:name "Patient reference" ;
+        sh:minCount 1 ;
+        sh:maxCount 1 ;
+        sh:class yaip:Patient ;
+    ] ;
+
+    sh:property [
+        sh:path yaip:physician ;
+        sh:minCount 1 ;
+        sh:class yaip:Physician ;
+    ] ;
+
+    sh:property [
+        sh:path yaip:start_time ;
+        sh:minCount 1 ;
+        sh:datatype xsd:dateTime ;
+    ] .
+
+# ── Constraint: A Patient cannot treat themselves ─────────────────────
+
+yaip:NoSelfTreatmentShape
+    a sh:NodeShape ;
+    sh:targetClass yaip:Encounter ;
+    sh:sparql [
+        sh:message "A Patient cannot be their own treating Physician" ;
+        sh:severity sh:Violation ;
+        sh:select """
+            PREFIX yaip: <https://yaip.io/ontology#>
+            SELECT $this WHERE {
+                $this yaip:patient   ?p .
+                $this yaip:physician ?p .
+            }
+        """ ;
+    ] .
+
+# ── Medication ────────────────────────────────────────────────────────
+
+yaip:MedicationShape
+    a sh:NodeShape ;
+    sh:targetClass yaip:Medication ;
+
+    sh:property [
+        sh:path yaip:drug_name ;
+        sh:minCount 1 ;
+        sh:datatype xsd:string ;
+    ] ;
+
+    sh:property [
+        sh:path yaip:dosage_mg ;
+        sh:datatype xsd:decimal ;
+        sh:minInclusive 0 ;
+        sh:message "Dosage must be a positive number" ;
+    ] .

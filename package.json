@@ -1,0 +1,22 @@
+{
+    "name": "y-aip",
+    "version": "1.0.0",
+    "description": "Y-AIP — Autonomous Intelligence Platform",
+    "private": true,
+    "workspaces": [
+        "services/*",
+        "apps/*"
+    ],
+    "scripts": {
+        "dev:gateway": "npm run dev --workspace=services/mcp-gateway",
+        "dev:graphql": "npm run dev --workspace=services/graphql-api",
+        "start:all": "node start_all.js",
+        "install:all": "npm install --workspaces",
+        "build:all": "npm run build --workspaces --if-present",
+        "lint:all": "npm run lint --workspaces --if-present"
+    },
+    "engines": {
+        "node": ">=20.0.0",
+        "npm": ">=10.0.0"
+    }
+}

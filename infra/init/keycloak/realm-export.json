@@ -1,0 +1,209 @@
+{
+    "realm": "yaip",
+    "enabled": true,
+    "registrationAllowed": false,
+    "roles": {
+        "realm": [
+            {
+                "name": "ADMIN",
+                "description": "Platform superuser"
+            },
+            {
+                "name": "OPERATOR",
+                "description": "Mission operator and proposal approver"
+            },
+            {
+                "name": "ANALYST",
+                "description": "Read-only analytics access"
+            },
+            {
+                "name": "AGENT",
+                "description": "Autonomous AI agent"
+            },
+            {
+                "name": "AUDITOR",
+                "description": "Read-only compliance and audit access"
+            },
+            {
+                "name": "MEDICAL_STAFF",
+                "description": "PHI-cleared medical access"
+            }
+        ]
+    },
+    "users": [
+        {
+            "username": "admin_user",
+            "enabled": true,
+            "email": "admin@yaip.local",
+            "firstName": "System",
+            "lastName": "Admin",
+            "credentials": [
+                {
+                    "type": "password",
+                    "value": "yaip_dev_secret",
+                    "temporary": false
+                }
+            ],
+            "realmRoles": [
+                "ADMIN"
+            ],
+            "attributes": {
+                "clearance": [
+                    "TOP_SECRET"
+                ],
+                "us_person": [
+                    "true"
+                ],
+                "permitted_connectors": [
+                    "*"
+                ],
+                "purpose_ids": [
+                    "admin_override"
+                ]
+            }
+        },
+        {
+            "username": "operator_jane",
+            "enabled": true,
+            "email": "jane@yaip.local",
+            "firstName": "Jane",
+            "lastName": "Operator",
+            "credentials": [
+                {
+                    "type": "password",
+                    "value": "yaip_dev_secret",
+                    "temporary": false
+                }
+            ],
+            "realmRoles": [
+                "OPERATOR"
+            ],
+            "attributes": {
+                "clearance": [
+                    "SECRET"
+                ],
+                "us_person": [
+                    "true"
+                ],
+                "permitted_connectors": [
+                    "connector-postgres",
+                    "connector-kafka"
+                ],
+                "purpose_ids": [
+                    "mission_planning"
+                ]
+            }
+        },
+        {
+            "username": "dr_smith",
+            "enabled": true,
+            "email": "smith@yaip.local",
+            "firstName": "John",
+            "lastName": "Smith",
+            "credentials": [
+                {
+                    "type": "password",
+                    "value": "yaip_dev_secret",
+                    "temporary": false
+                }
+            ],
+            "realmRoles": [
+                "MEDICAL_STAFF"
+            ],
+            "attributes": {
+                "clearance": [
+                    "CUI"
+                ],
+                "us_person": [
+                    "true"
+                ],
+                "permitted_connectors": [
+                    "connector-postgres",
+                    "connector-fhir"
+                ],
+                "purpose_ids": [
+                    "enc:patient-MRN-00291"
+                ]
+            }
+        }
+    ],
+    "clients": [
+        {
+            "clientId": "yaip-backend",
+            "enabled": true,
+            "clientAuthenticatorType": "client-secret",
+            "secret": "change_me_in_prod",
+            "standardFlowEnabled": true,
+            "directAccessGrantsEnabled": true,
+            "serviceAccountsEnabled": true,
+            "protocolMappers": [
+                {
+                    "name": "clearance-mapper",
+                    "protocol": "openid-connect",
+                    "protocolMapper": "oidc-usermodel-attribute-mapper",
+                    "config": {
+                        "user.attribute": "clearance",
+                        "claim.name": "clearance",
+                        "jsonType.label": "String",
+                        "id.token.claim": "true",
+                        "access.token.claim": "true"
+                    }
+                },
+                {
+                    "name": "us-person-mapper",
+                    "protocol": "openid-connect",
+                    "protocolMapper": "oidc-usermodel-attribute-mapper",
+                    "config": {
+                        "user.attribute": "us_person",
+                        "claim.name": "us_person",
+                        "jsonType.label": "boolean",
+                        "id.token.claim": "true",
+                        "access.token.claim": "true"
+                    }
+                },
+                {
+                    "name": "permitted-connectors-mapper",
+                    "protocol": "openid-connect",
+                    "protocolMapper": "oidc-usermodel-attribute-mapper",
+                    "config": {
+                        "user.attribute": "permitted_connectors",
+                        "claim.name": "permitted_connectors",
+                        "jsonType.label": "JSON",
+                        "multivalued": "true",
+                        "id.token.claim": "true",
+                        "access.token.claim": "true"
+                    }
+                },
+                {
+                    "name": "purposes-mapper",
+                    "protocol": "openid-connect",
+                    "protocolMapper": "oidc-usermodel-attribute-mapper",
+                    "config": {
+                        "user.attribute": "purpose_ids",
+                        "claim.name": "purpose_ids",
+                        "jsonType.label": "JSON",
+                        "multivalued": "true",
+                        "id.token.claim": "true",
+                        "access.token.claim": "true"
+                    }
+                }
+            ]
+        },
+        {
+            "clientId": "yaip-agent",
+            "enabled": true,
+            "clientAuthenticatorType": "client-secret",
+            "secret": "agent-secret-change-in-prod",
+            "serviceAccountsEnabled": true,
+            "defaultRoles": [
+                "AGENT"
+            ],
+            "attributes": {
+                "clearance": "SECRET",
+                "us_person": "true",
+                "permitted_connectors": "connector-postgres,connector-kafka",
+                "purpose_ids": "mission_planning"
+            }
+        }
+    ]
+}

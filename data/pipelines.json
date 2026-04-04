@@ -1,0 +1,32 @@
+[
+  {
+    "id": "g9lvsg",
+    "projectId": "hbznyb",
+    "name": "Pipeline Builder - 2026-04-04 04:14:00",
+    "folder_id": "hbznyb",
+    "type": "batch",
+    "compute": "standard",
+    "created_at": 1775276049155
+  },
+  {
+    "id": "k0yyia",
+    "projectId": "hbznyb",
+    "name": "Pipeline Builder - 2026-04-04 04:12:47",
+    "folder_id": "hbznyb",
+    "type": "batch",
+    "compute": "standard",
+    "created_at": 1775276008456
+  },
+  {
+    "id": "px8phw",
+    "projectId": "hbznyb",
+    "name": "Pipeline Builder - 2026-04-03 18:26:04",
+    "folder_id": "hbznyb",
+    "type": "batch",
+    "compute": "standard",
+    "created_at": 1775240842078,
+    "transform_path_name": "Transform path 1",
+    "transforms": "[{\"id\":\"t-1775247356906\",\"type\":\"Cast\",\"applied\":true,\"params\":{\"column\":\"days_until_due\",\"targetColumn\":\"days_until_due\",\"toType\":\"Timestamp\"}},{\"id\":\"t-1775247920070\",\"type\":\"Filter rows\",\"applied\":true,\"params\":{\"column\":\"order_id\",\"condition\":\"is not null\",\"treatEmpty\":true}},{\"id\":\"t-1775247957871\",\"type\":\"Normalize column names\",\"applied\":true,\"params\":{\"removeSpecial\":false}}]",
+    "updated_at": "2026-04-03T20:26:27.846Z"
+  }
+]

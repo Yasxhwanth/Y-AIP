@@ -1,0 +1,42 @@
+# Y-AIP Agent Engine — Python Dependencies
+# Python 3.11+ required
+
+# ── Web Framework ─────────────────────────────────────────────────────
+fastapi==0.111.0
+uvicorn[standard]==0.29.0
+pydantic==2.7.1
+pydantic-settings==2.2.1
+python-dotenv==1.0.1
+
+# ── LangGraph + LangChain ─────────────────────────────────────────────
+langgraph==0.1.5
+langchain==0.2.1
+langchain-core==0.2.5
+langchain-community==0.2.1
+
+# ── LLM Routing ───────────────────────────────────────────────────────
+litellm==1.38.5
+
+# ── LLM Guard (prompt injection — self-hosted, air-gap safe) ─────────
+llm-guard==0.3.13
+
+# ── Neo4j / GraphQL client ────────────────────────────────────────────
+neo4j==5.19.0
+gql[aiohttp]==3.5.0             # GraphQL client → graphql-api service
+
+# ── Temporal ──────────────────────────────────────────────────────────
+temporalio==1.6.0
+
+# ── Kafka ─────────────────────────────────────────────────────────────
+confluent-kafka==2.4.0
+fastavro==1.9.4                  # Avro schema support
+
+# ── Observability ─────────────────────────────────────────────────────
+opentelemetry-api==1.24.0
+opentelemetry-sdk==1.24.0
+opentelemetry-exporter-otlp==1.24.0
+langsmith==0.1.63               # Optional — agent tracing
+
+# ── Utils ─────────────────────────────────────────────────────────────
+httpx==0.27.0
+structlog==24.1.0

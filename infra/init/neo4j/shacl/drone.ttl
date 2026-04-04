@@ -1,0 +1,114 @@
+@prefix sh:    <http://www.w3.org/ns/shacl#> .
+@prefix yaip:  <https://yaip.io/ontology#> .
+@prefix xsd:   <http://www.w3.org/2001/XMLSchema#> .
+
+# ─────────────────────────────────────────────────────────────────────
+# Y-AIP SHACL Shapes — Drone / Defense Domain
+# ─────────────────────────────────────────────────────────────────────
+
+# ── DroneUnit ─────────────────────────────────────────────────────────
+
+yaip:DroneUnitShape
+    a sh:NodeShape ;
+    sh:targetClass yaip:DroneUnit ;
+
+    sh:property [
+        sh:path yaip:drone_id ;
+        sh:minCount 1 ; sh:maxCount 1 ;
+        sh:datatype xsd:string ;
+    ] ;
+
+    sh:property [
+        sh:path yaip:status ;
+        sh:minCount 1 ;
+        sh:in ( "IDLE" "IN_MISSION" "RTB" "CHARGING" "FAULT" "OFFLINE" ) ;
+        sh:message "DroneUnit status must be a valid operational state" ;
+    ] ;
+
+    sh:property [
+        sh:path yaip:battery_pct ;
+        sh:minCount 1 ;
+        sh:datatype xsd:integer ;
+        sh:minInclusive 0 ;
+        sh:maxInclusive 100 ;
+        sh:message "Battery percentage must be 0–100" ;
+    ] ;
+
+    sh:property [
+        sh:path yaip:classification ;
+        sh:minCount 1 ;
+        sh:in ( "UNCLASSIFIED" "CUI" "SECRET" "TOP_SECRET" ) ;
+    ] .
+
+# ── Business Rule: Low battery drone must not be IN_MISSION ──────────
+
+yaip:DroneNotInMissionWhenLowBattery
+    a sh:NodeShape ;
+    sh:targetClass yaip:DroneUnit ;
+    sh:sparql [
+        sh:message "Drone with battery < 15% must not be IN_MISSION" ;
+        sh:severity sh:Warning ;
+        sh:select """
+            PREFIX yaip: <https://yaip.io/ontology#>
+            SELECT $this WHERE {
+                $this yaip:battery_pct ?b .
+                $this yaip:status      "IN_MISSION" .
+                FILTER (?b < 15)
+            }
+        """ ;
+    ] .
+
+# ── Mission ───────────────────────────────────────────────────────────
+
+yaip:MissionShape
+    a sh:NodeShape ;
+    sh:targetClass yaip:Mission ;
+
+    sh:property [
+        sh:path yaip:mission_id ;
+        sh:minCount 1 ; sh:maxCount 1 ;
+        sh:datatype xsd:string ;
+    ] ;
+
+    sh:property [
+        sh:path yaip:status ;
+        sh:minCount 1 ;
+        sh:in ( "PLANNED" "ACTIVE" "PAUSED" "COMPLETE" "ABORTED" ) ;
+    ] ;
+
+    sh:property [
+        sh:path yaip:assigned_drone ;
+        sh:maxCount 1 ;
+        sh:class yaip:DroneUnit ;
+        sh:message "A mission can only be assigned to one drone at a time" ;
+    ] ;
+
+    sh:property [
+        sh:path yaip:classification ;
+        sh:minCount 1 ;
+        sh:in ( "UNCLASSIFIED" "CUI" "SECRET" "TOP_SECRET" ) ;
+    ] .
+
+# ── SolarPanel ────────────────────────────────────────────────────────
+
+yaip:SolarPanelShape
+    a sh:NodeShape ;
+    sh:targetClass yaip:SolarPanel ;
+
+    sh:property [
+        sh:path yaip:panel_id ;
+        sh:minCount 1 ; sh:maxCount 1 ;
+        sh:datatype xsd:string ;
+    ] ;
+
+    sh:property [
+        sh:path yaip:efficiency_pct ;
+        sh:datatype xsd:decimal ;
+        sh:minInclusive 0 ;
+        sh:maxInclusive 100 ;
+    ] ;
+
+    sh:property [
+        sh:path yaip:anomaly_detected ;
+        sh:datatype xsd:boolean ;
+    ] .

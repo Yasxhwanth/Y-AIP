@@ -1,0 +1,87 @@
+
+> command-center@0.1.0 lint
+> eslint
+
+
+C:\Users\YASHWANTH\Projects\Y-AIP\apps\command-center\src\app\api\graphql\route.ts
+  10:15  warning  'session' is assigned a value but never used  @typescript-eslint/no-unused-vars
+
+C:\Users\YASHWANTH\Projects\Y-AIP\apps\command-center\src\app\api\workshop-admin\[...path]\route.ts
+  18:35  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+C:\Users\YASHWANTH\Projects\Y-AIP\apps\command-center\src\app\files\page.tsx
+   5:41  warning  'Grid' is defined but never used          @typescript-eslint/no-unused-vars
+  41:53  error    Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+C:\Users\YASHWANTH\Projects\Y-AIP\apps\command-center\src\app\ontology\page.tsx
+   17:272  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   17:294  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  518:32   error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+C:\Users\YASHWANTH\Projects\Y-AIP\apps\command-center\src\app\pipeline\[id]\page.tsx
+   7:31  warning  'History' is defined but never used       @typescript-eslint/no-unused-vars
+  14:46  error    Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+C:\Users\YASHWANTH\Projects\Y-AIP\apps\command-center\src\app\workshop\page.tsx
+   1:26  warning  'PlusCircle' is defined but never used    @typescript-eslint/no-unused-vars
+   1:38  warning  'Save' is defined but never used          @typescript-eslint/no-unused-vars
+  11:62  error    Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+C:\Users\YASHWANTH\Projects\Y-AIP\apps\command-center\src\app\workspace\[id]\page.tsx
+    6:23   warning  'CheckCircle' is defined but never used                                                                                  @typescript-eslint/no-unused-vars
+    6:36   warning  'Navigation' is defined but never used                                                                                   @typescript-eslint/no-unused-vars
+   10:5    warning  'Lock' is defined but never used                                                                                         @typescript-eslint/no-unused-vars
+   10:11   warning  'Code2' is defined but never used                                                                                        @typescript-eslint/no-unused-vars
+   10:24   warning  'BookOpen' is defined but never used                                                                                     @typescript-eslint/no-unused-vars
+   11:28   warning  'LayoutTemplate' is defined but never used                                                                               @typescript-eslint/no-unused-vars
+   11:44   warning  'Settings' is defined but never used                                                                                     @typescript-eslint/no-unused-vars
+   11:54   warning  'Users' is defined but never used                                                                                        @typescript-eslint/no-unused-vars
+   18:11   warning  'OntologyFolder' is defined but never used                                                                               @typescript-eslint/no-unused-vars
+   28:44   error    Unexpected any. Specify a different type                                                                                 @typescript-eslint/no-explicit-any
+   29:46   error    Unexpected any. Specify a different type                                                                                 @typescript-eslint/no-explicit-any
+   31:12   warning  'isReferencesOpen' is assigned a value but never used                                                                    @typescript-eslint/no-unused-vars
+   31:30   warning  'setIsReferencesOpen' is assigned a value but never used                                                                 @typescript-eslint/no-unused-vars
+   64:39   error    Unexpected any. Specify a different type                                                                                 @typescript-eslint/no-explicit-any
+   65:40   error    Unexpected any. Specify a different type                                                                                 @typescript-eslint/no-explicit-any
+   78:8    warning  React Hook useEffect has a missing dependency: 'fetchProjectContents'. Either include it or remove the dependency array  react-hooks/exhaustive-deps
+  297:145  error    `"` can be escaped with `&quot;`, `&ldquo;`, `&#34;`, `&rdquo;`                                                          react/no-unescaped-entities
+  297:149  error    `"` can be escaped with `&quot;`, `&ldquo;`, `&#34;`, `&rdquo;`                                                          react/no-unescaped-entities
+
+C:\Users\YASHWANTH\Projects\Y-AIP\apps\command-center\src\components\atlas-viewer.tsx
+   5:38  warning  'CheckCircle' is defined but never used   @typescript-eslint/no-unused-vars
+  30:47  error    Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  51:53  error    Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  89:52  error    Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+C:\Users\YASHWANTH\Projects\Y-AIP\apps\command-center\src\components\files\CreatePipelineModal.tsx
+   2:13  warning  'Calendar' is defined but never used  @typescript-eslint/no-unused-vars
+   2:23  warning  'Play' is defined but never used      @typescript-eslint/no-unused-vars
+  76:34  error    'Folder' is not defined               react/jsx-no-undef
+
+C:\Users\YASHWANTH\Projects\Y-AIP\apps\command-center\src\components\ontology\schema-editor.tsx
+  28:80  error    Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  69:18  warning  'err' is defined but never used           @typescript-eslint/no-unused-vars
+
+C:\Users\YASHWANTH\Projects\Y-AIP\apps\command-center\src\components\pipeline\AddDataModal.tsx
+   2:21  warning  'FileText' is defined but never used               @typescript-eslint/no-unused-vars
+   2:66  warning  'Check' is defined but never used                  @typescript-eslint/no-unused-vars
+  11:12  warning  'pipelineInfo' is assigned a value but never used  @typescript-eslint/no-unused-vars
+  11:54  error    Unexpected any. Specify a different type           @typescript-eslint/no-explicit-any
+  12:46  error    Unexpected any. Specify a different type           @typescript-eslint/no-explicit-any
+  13:62  error    Unexpected any. Specify a different type           @typescript-eslint/no-explicit-any
+  46:46  error    Unexpected any. Specify a different type           @typescript-eslint/no-explicit-any
+
+C:\Users\YASHWANTH\Projects\Y-AIP\apps\command-center\src\components\proposals-inbox.tsx
+   6:10  warning  'cn' is defined but never used            @typescript-eslint/no-unused-vars
+  36:49  error    Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  76:43  error    Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+C:\Users\YASHWANTH\Projects\Y-AIP\apps\command-center\src\components\workshop\grid-editor.tsx
+  135:54  error  `"` can be escaped with `&quot;`, `&ldquo;`, `&#34;`, `&rdquo;`  react/no-unescaped-entities
+  135:65  error  `"` can be escaped with `&quot;`, `&ldquo;`, `&#34;`, `&rdquo;`  react/no-unescaped-entities
+
+C:\Users\YASHWANTH\Projects\Y-AIP\apps\command-center\src\lib\auth.ts
+  22:25  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+✖ 52 problems (27 errors, 25 warnings)
+

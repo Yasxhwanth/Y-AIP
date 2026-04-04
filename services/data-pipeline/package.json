@@ -1,0 +1,13 @@
+{
+    "name": "y-aip-data-pipeline",
+    "version": "1.0.0",
+    "private": true,
+    "type": "module",
+    "scripts": {
+        "sync": "node sync-ontology.js"
+    },
+    "dependencies": {
+        "neo4j-driver": "^5.19.0",
+        "uuid": "^9.0.1"
+    }
+}

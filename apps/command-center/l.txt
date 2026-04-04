@@ -1,0 +1,23 @@
+
+C:\Users\YASHWANTH\Projects\Y-AIP\apps\command-center\src\app\workspace\[id]\page.tsx
+    6:23   warning  'CheckCircle' is defined but never used                                                                                  @typescript-eslint/no-unused-vars
+    6:36   warning  'Navigation' is defined but never used                                                                                   @typescript-eslint/no-unused-vars
+   10:5    warning  'Lock' is defined but never used                                                                                         @typescript-eslint/no-unused-vars
+   10:11   warning  'Code2' is defined but never used                                                                                        @typescript-eslint/no-unused-vars
+   10:24   warning  'BookOpen' is defined but never used                                                                                     @typescript-eslint/no-unused-vars
+   11:28   warning  'LayoutTemplate' is defined but never used                                                                               @typescript-eslint/no-unused-vars
+   11:44   warning  'Settings' is defined but never used                                                                                     @typescript-eslint/no-unused-vars
+   11:54   warning  'Users' is defined but never used                                                                                        @typescript-eslint/no-unused-vars
+   17:11   warning  'OntologyFolder' is defined but never used                                                                               @typescript-eslint/no-unused-vars
+   27:44   error    Unexpected any. Specify a different type                                                                                 @typescript-eslint/no-explicit-any
+   28:46   error    Unexpected any. Specify a different type                                                                                 @typescript-eslint/no-explicit-any
+   30:12   warning  'isReferencesOpen' is assigned a value but never used                                                                    @typescript-eslint/no-unused-vars
+   30:30   warning  'setIsReferencesOpen' is assigned a value but never used                                                                 @typescript-eslint/no-unused-vars
+   63:39   error    Unexpected any. Specify a different type                                                                                 @typescript-eslint/no-explicit-any
+   64:40   error    Unexpected any. Specify a different type                                                                                 @typescript-eslint/no-explicit-any
+   77:8    warning  React Hook useEffect has a missing dependency: 'fetchProjectContents'. Either include it or remove the dependency array  react-hooks/exhaustive-deps
+  296:145  error    `"` can be escaped with `&quot;`, `&ldquo;`, `&#34;`, `&rdquo;`                                                          react/no-unescaped-entities
+  296:149  error    `"` can be escaped with `&quot;`, `&ldquo;`, `&#34;`, `&rdquo;`                                                          react/no-unescaped-entities
+
+✖ 18 problems (6 errors, 12 warnings)
+

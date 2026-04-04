@@ -1,0 +1,395 @@
+version: "3.9"
+
+# ============================================================
+# Y-AIP — Full Infrastructure Stack
+# Usage:
+#   docker-compose up -d                  # Start everything
+#   docker-compose up -d postgres neo4j   # Start specific services
+#   docker-compose --profile monitoring up -d  # Include observability
+# ============================================================
+
+networks:
+  yaip-net:
+    driver: bridge
+
+volumes:
+  postgres_data:
+  neo4j_data:
+  neo4j_logs:
+  clickhouse_data:
+  kafka_data:
+  zookeeper_data:
+  minio_data:
+  keycloak_data:
+  openbao_data:
+  temporal_data:
+
+
+services:
+
+  # ─────────────────────────────────────────
+  # DATABASES
+  # ─────────────────────────────────────────
+
+  postgres:
+    image: postgres:16-alpine
+    container_name: yaip-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-yaip}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-yaip_dev_secret}
+      POSTGRES_DB: ${POSTGRES_DB:-yaip}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./init/postgres:/docker-entrypoint-initdb.d
+    ports:
+      - "5432:5432"
+    networks:
+      - yaip-net
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-yaip}" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  neo4j:
+    image: neo4j:5.18-community
+    container_name: yaip-neo4j
+    restart: unless-stopped
+    environment:
+      NEO4J_AUTH: ${NEO4J_USER:-neo4j}/${NEO4J_PASSWORD:-yaip_dev_secret}
+      NEO4J_PLUGINS: '["apoc", "n10s"]' # n10s = neosemantics (SHACL support)
+      NEO4J_dbms_security_procedures_unrestricted: "apoc.*,n10s.*"
+      NEO4J_dbms_memory_heap_initial__size: 512m
+      NEO4J_dbms_memory_heap_max__size: 1G
+    volumes:
+      - neo4j_data:/data
+      - neo4j_logs:/logs
+      - ./init/neo4j/shacl:/shacl # SHACL shape files mounted here
+    ports:
+      - "7474:7474" # Browser UI
+      - "7687:7687" # Bolt
+    networks:
+      - yaip-net
+    healthcheck:
+      test: [ "CMD-SHELL", "exec 3<>/dev/tcp/localhost/7474 || exit 1" ]
+      interval: 15s
+      timeout: 10s
+      retries: 8
+      start_period: 30s
+
+  clickhouse:
+    image: clickhouse/clickhouse-server:24.3-alpine
+    container_name: yaip-clickhouse
+    restart: unless-stopped
+    environment:
+      CLICKHOUSE_USER: ${CLICKHOUSE_USER:-yaip}
+      CLICKHOUSE_PASSWORD: ${CLICKHOUSE_PASSWORD:-yaip_dev_secret}
+      CLICKHOUSE_DB: audit
+    volumes:
+      - clickhouse_data:/var/lib/clickhouse
+      - ./init/clickhouse:/docker-entrypoint-initdb.d
+    ports:
+      - "8123:8123" # HTTP
+      - "9000:9009" # Native (offset to avoid conflict with MinIO)
+    networks:
+      - yaip-net
+    healthcheck:
+      test: [ "CMD", "clickhouse-client", "--query", "SELECT 1" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ─────────────────────────────────────────
+  # STREAMING — KAFKA + SCHEMA REGISTRY
+  # ─────────────────────────────────────────
+
+  zookeeper:
+    image: confluentinc/cp-zookeeper:7.6.0
+    container_name: yaip-zookeeper
+    restart: unless-stopped
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
+    volumes:
+      - zookeeper_data:/var/lib/zookeeper/data
+    networks:
+      - yaip-net
+
+  kafka:
+    image: confluentinc/cp-kafka:7.6.0
+    container_name: yaip-kafka
+    restart: unless-stopped
+    depends_on:
+      - zookeeper
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092,PLAINTEXT_HOST://localhost:29092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
+    ports:
+      - "29092:29092" # External access
+    networks:
+      - yaip-net
+    healthcheck:
+      test: [ "CMD", "kafka-broker-api-versions", "--bootstrap-server", "kafka:9092" ]
+      interval: 15s
+      timeout: 10s
+      retries: 8
+      start_period: 20s
+
+  schema-registry:
+    image: confluentinc/cp-schema-registry:7.6.0
+    container_name: yaip-schema-registry
+    restart: unless-stopped
+    depends_on:
+      kafka:
+        condition: service_healthy
+    environment:
+      SCHEMA_REGISTRY_HOST_NAME: schema-registry
+      SCHEMA_REGISTRY_KAFKASTORE_BOOTSTRAP_SERVERS: kafka:9092
+      SCHEMA_REGISTRY_LISTENERS: http://0.0.0.0:8081
+    ports:
+      - "8081:8081"
+    networks:
+      - yaip-net
+    healthcheck:
+      test: [ "CMD", "curl", "-f", "http://localhost:8081/subjects" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ─────────────────────────────────────────
+  # OBJECT STORE — MinIO (S3-compatible)
+  # ─────────────────────────────────────────
+
+  minio:
+    image: minio/minio:RELEASE.2024-01-16T16-07-38Z
+    container_name: yaip-minio
+    restart: unless-stopped
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ACCESS_KEY:-yaip_minio}
+      MINIO_ROOT_PASSWORD: ${MINIO_SECRET_KEY:-yaip_minio_secret}
+    volumes:
+      - minio_data:/data
+    ports:
+      - "9000:9000" # S3 API
+      - "9001:9001" # Console UI
+    networks:
+      - yaip-net
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "exec 3<>/dev/tcp/localhost/9000 && echo -e \"GET /minio/health/live HTTP/1.1\r
+
+            Host: localhost\r
+
+            Connection: close\r
+
+            \r
+
+            \" >&3 && cat <&3 | grep \"200 OK\" || exit 1"
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  minio-init:
+    image: minio/mc:latest
+    container_name: yaip-minio-init
+    depends_on:
+      minio:
+        condition: service_healthy
+    entrypoint: >
+      /bin/sh -c "
+        mc alias set local http://minio:9000 ${MINIO_ACCESS_KEY:-yaip_minio} ${MINIO_SECRET_KEY:-yaip_minio_secret};
+        mc mb --ignore-existing local/yaip-data;
+        mc mb --ignore-existing local/yaip-logs;
+        mc mb --ignore-existing local/yaip-models;
+        echo 'MinIO buckets created';
+      "
+    networks:
+      - yaip-net
+
+  # ─────────────────────────────────────────
+  # WORKFLOW ENGINE — TEMPORAL
+  # ─────────────────────────────────────────
+
+  temporal:
+    image: temporalio/auto-setup:1.24
+    container_name: yaip-temporal
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      DB: postgresql
+      DB_PORT: 5432
+      POSTGRES_USER: ${POSTGRES_USER:-yaip}
+      POSTGRES_PWD: ${POSTGRES_PASSWORD:-yaip_dev_secret}
+      POSTGRES_SEEDS: postgres
+      DYNAMIC_CONFIG_FILE_PATH: /etc/temporal/dynamicconfig/development.yaml
+    volumes:
+      - ./init/temporal:/etc/temporal/dynamicconfig
+    ports:
+      - "7233:7233"
+    networks:
+      - yaip-net
+    healthcheck:
+      test: [ "CMD", "tctl", "--address", "temporal:7233", "cluster", "health" ]
+      interval: 20s
+      timeout: 10s
+      retries: 10
+      start_period: 30s
+
+  temporal-ui:
+    image: temporalio/ui:2.26.2
+    container_name: yaip-temporal-ui
+    restart: unless-stopped
+    depends_on:
+      - temporal
+    environment:
+      TEMPORAL_ADDRESS: temporal:7233
+      TEMPORAL_CORS_ORIGINS: http://localhost:3000
+    ports:
+      - "8088:8080"
+    networks:
+      - yaip-net
+
+  # ─────────────────────────────────────────
+  # POLICY ENGINE — OPA
+  # ─────────────────────────────────────────
+
+  opa:
+    image: openpolicyagent/opa:latest-static
+    container_name: yaip-opa
+    restart: unless-stopped
+    command:
+      - "run"
+      - "--server"
+      - "--log-level=info"
+      - "--log-format=json"
+      - "--addr=0.0.0.0:8181"
+      - "/policies"
+    volumes:
+      - ./opa/policies:/policies
+    ports:
+      - "8181:8181"
+    networks:
+      - yaip-net
+    healthcheck:
+      test: [ "CMD", "wget", "-qO-", "http://localhost:8181/health" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ─────────────────────────────────────────
+  # IDENTITY — KEYCLOAK
+  # ─────────────────────────────────────────
+
+  keycloak:
+    image: quay.io/keycloak/keycloak:24.0
+    container_name: yaip-keycloak
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    command: start-dev --import-realm
+    environment:
+      KEYCLOAK_ADMIN: ${KEYCLOAK_ADMIN:-admin}
+      KEYCLOAK_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD:-admin}
+      KC_DB: postgres
+      KC_DB_URL: jdbc:postgresql://postgres:5432/keycloak
+      KC_DB_USERNAME: ${POSTGRES_USER:-yaip}
+      KC_DB_PASSWORD: ${POSTGRES_PASSWORD:-yaip_dev_secret}
+      KC_HOSTNAME: localhost
+      KC_HOSTNAME_PORT: 8080
+      KC_HTTP_ENABLED: "true"
+    volumes:
+      - ./init/keycloak:/opt/keycloak/data/import
+    ports:
+      - "8080:8080"
+    networks:
+      - yaip-net
+
+  # ─────────────────────────────────────────
+  # SECRETS — OPENBAO
+  # ─────────────────────────────────────────
+
+  openbao:
+    image: openbao/openbao:latest
+    container_name: yaip-openbao
+    restart: unless-stopped
+    cap_add:
+      - IPC_LOCK
+    environment:
+      BAO_DEV_ROOT_TOKEN_ID: ${OPENBAO_ROOT_TOKEN:-yaip-dev-root-token}
+      BAO_DEV_LISTEN_ADDRESS: 0.0.0.0:8200
+    command: server -dev
+    ports:
+      - "8200:8200"
+    networks:
+      - yaip-net
+    volumes:
+      - openbao_data:/openbao/data
+
+  # ─────────────────────────────────────────
+  # API GATEWAY — TRAEFIK
+  # ─────────────────────────────────────────
+
+  traefik:
+    image: traefik:v3.0
+    container_name: yaip-traefik
+    restart: unless-stopped
+    command:
+      - "--api.insecure=true" # Dashboard (dev only)
+      - "--providers.docker=true"
+      - "--providers.docker.exposedbydefault=false"
+      - "--providers.file.filename=/traefik/config.yml"
+      - "--entrypoints.web.address=:80"
+      - "--entrypoints.websecure.address=:443"
+      - "--log.level=INFO"
+    ports:
+      - "80:80"
+      - "443:443"
+      - "8090:8080" # Traefik dashboard
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - ./traefik:/traefik
+    networks:
+      - yaip-net
+
+  # ─────────────────────────────────────────
+  # OBSERVABILITY (optional profile)
+  # ─────────────────────────────────────────
+
+  jaeger:
+    image: jaegertracing/all-in-one:1.55
+    container_name: yaip-jaeger
+    restart: unless-stopped
+    profiles: [ "monitoring" ]
+    environment:
+      COLLECTOR_OTLP_ENABLED: "true"
+    ports:
+      - "16686:16686" # UI
+      - "4317:4317" # OTLP gRPC
+      - "4318:4318" # OTLP HTTP
+    networks:
+      - yaip-net
+
+  prometheus:
+    image: prom/prometheus:v2.50.0
+    container_name: yaip-prometheus
+    restart: unless-stopped
+    profiles: [ "monitoring" ]
+    volumes:
+      - ./init/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml
+    ports:
+      - "9090:9090"
+    networks:
+      - yaip-net

@@ -1,0 +1,43 @@
+{
+  "role_permissions": {
+    "ADMIN": {
+      "resource_types": ["*"],
+      "description": "Full access — superuser"
+    },
+    "OPERATOR": {
+      "resource_types": [
+        "DroneUnit", "Mission", "SolarPanel", "MaintenanceTicket",
+        "Transaction", "ComplianceAlert",
+        "Proposal", "ActionLog"
+      ],
+      "description": "Can operate and approve proposals"
+    },
+    "ANALYST": {
+      "resource_types": [
+        "DroneUnit", "SolarPanel", "Transaction",
+        "AuditEvent", "Report"
+      ],
+      "description": "Read-only analytics access"
+    },
+    "AGENT": {
+      "resource_types": [
+        "DroneUnit", "Mission", "SolarPanel", "MaintenanceTicket",
+        "Transaction", "ComplianceAlert", "Patient", "Claim"
+      ],
+      "description": "AI agent identity — scoped to permitted connectors only"
+    },
+    "AUDITOR": {
+      "resource_types": [
+        "AuditEvent", "Proposal", "ActionLog", "AgentRun",
+        "OPADecisionLog"
+      ],
+      "description": "Read-only audit access — cannot modify anything"
+    },
+    "MEDICAL_STAFF": {
+      "resource_types": [
+        "Patient", "Medication", "Encounter", "Claim"
+      ],
+      "description": "Medical vertical — PHI requires active encounter context"
+    }
+  }
+}

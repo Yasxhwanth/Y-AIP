@@ -1,0 +1,43 @@
+http:
+  routers:
+    mcp-gateway:
+      rule: "PathPrefix(`/mcp`)"
+      entryPoints:
+        - web
+      middlewares:
+        - rate-limit
+      service: mcp-gateway
+
+    agent-engine:
+      rule: "PathPrefix(`/agents`)"
+      entryPoints:
+        - web
+      service: agent-engine
+
+    graphql-api:
+      rule: "PathPrefix(`/graphql`)"
+      entryPoints:
+        - web
+      service: graphql-api
+
+  middlewares:
+    rate-limit:
+      rateLimit:
+        burst: 100
+        average: 50
+
+  services:
+    mcp-gateway:
+      loadBalancer:
+        servers:
+          - url: "http://mcp-gateway:4000"
+
+    agent-engine:
+      loadBalancer:
+        servers:
+          - url: "http://agent-engine:8000"
+
+    graphql-api:
+      loadBalancer:
+        servers:
+          - url: "http://graphql-api:4001"

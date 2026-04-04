@@ -1,0 +1,16 @@
+# Y-AIP Actions — Temporal Worker Dependencies
+
+# ── Temporal SDK ──────────────────────────────────────────────────────
+temporalio==1.6.0
+
+# ── Web Framework (for synchronous MCP Tool API) ──────────────────────
+fastapi==0.111.0
+uvicorn[standard]==0.29.0
+pydantic==2.7.1
+pydantic-settings==2.2.1
+python-dotenv==1.0.1
+
+# ── Observability & Utils ──────────────────────────────────────────────
+structlog==24.1.0
+httpx==0.27.0
+confluent-kafka==2.3.0
