@@ -1,23 +1,66 @@
-import { NextResponse } from 'next/server';
+import fs from "fs";
+import path from "path";
+import { NextResponse } from "next/server";
 
-const transformCache: Record<string, any> = {};
+export const dynamic = "force-dynamic";
 
-export async function GET(request: Request, { params }: { params: { pipelineId: string; nodeId: string } }) {
-    const data = transformCache[params.nodeId] || {
-        pathName: "Transform path 1",
-        transforms: []
-    };
-    return NextResponse.json(data);
+type RouteContext = { params: Promise<{ pipelineId: string; nodeId: string }> };
+
+function getTransformPath(pipelineId: string, nodeId: string) {
+    return path.join(process.cwd(), "data", "transforms", pipelineId, `${nodeId}.json`);
 }
 
-export async function POST(request: Request, { params }: { params: { pipelineId: string; nodeId: string } }) {
-    const body = await request.json();
-    transformCache[params.nodeId] = body;
-    return NextResponse.json({ success: true, message: "Transforms saved successfully (mock)" });
+function readTransformFile(pipelineId: string, nodeId: string) {
+    try {
+        const filePath = getTransformPath(pipelineId, nodeId);
+        if (!fs.existsSync(filePath)) return null;
+        return JSON.parse(fs.readFileSync(filePath, "utf-8"));
+    } catch {
+        return null;
+    }
 }
 
-export async function PUT(request: Request, { params }: { params: { pipelineId: string; nodeId: string } }) {
-    const body = await request.json();
-    transformCache[params.nodeId] = body;
-    return NextResponse.json({ success: true, message: "Transforms updated successfully (mock)" });
+function writeTransformFile(pipelineId: string, nodeId: string, data: unknown) {
+    const filePath = getTransformPath(pipelineId, nodeId);
+    const dir = path.dirname(filePath);
+    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+    fs.writeFileSync(filePath, JSON.stringify(data, null, 2), "utf-8");
+}
+
+export async function GET(_request: Request, context: RouteContext) {
+    try {
+        const { pipelineId, nodeId } = await context.params;
+        const data = readTransformFile(pipelineId, nodeId) ?? {
+            pathName: "Transform path 1",
+            transforms: [],
+        };
+        return NextResponse.json(data);
+    } catch (err) {
+        console.error("[transforms GET]", err);
+        return NextResponse.json({ error: String(err) }, { status: 500 });
+    }
+}
+
+export async function POST(request: Request, context: RouteContext) {
+    try {
+        const { pipelineId, nodeId } = await context.params;
+        const body = await request.json();
+        writeTransformFile(pipelineId, nodeId, body);
+        return NextResponse.json({ success: true, message: "Transforms saved successfully" });
+    } catch (err) {
+        console.error("[transforms POST]", err);
+        return NextResponse.json({ error: String(err) }, { status: 500 });
+    }
+}
+
+export async function PUT(request: Request, context: RouteContext) {
+    try {
+        const { pipelineId, nodeId } = await context.params;
+        const body = await request.json();
+        writeTransformFile(pipelineId, nodeId, body);
+        return NextResponse.json({ success: true, message: "Transforms updated successfully" });
+    } catch (err) {
+        console.error("[transforms PUT]", err);
+        return NextResponse.json({ error: String(err) }, { status: 500 });
+    }
 }

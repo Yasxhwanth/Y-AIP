@@ -686,18 +686,46 @@ export async function registerOntologyAdminRoutes(app: FastifyInstance, driver: 
         const { id } = req.params;
         const session = driver.session();
         try {
+            let dir = "";
+            try {
+                const projectResult = await session.run(`
+                    MATCH (p:OntologyProject {id: $id})
+                    RETURN p.folder_path as folderPath
+                `, { id });
+                if (projectResult.records.length > 0) {
+                    dir = projectResult.records[0].get("folderPath") || "";
+                }
+            } catch { /* ignore path lookup */ }
+
             const result = await session.run(`
                 MATCH (p:OntologyProject {id: $id})<-[:BELONGS_TO]-(d:OntologyDataset)
                 RETURN d { .*, created_at: toString(d.created_at) } as dataset
                 ORDER BY d.created_at DESC
             `, { id });
-            return result.records.map(r => {
+
+            const merged = new Map<string, Record<string, unknown>>();
+            for (const r of result.records) {
                 const d = r.get("dataset");
-                return {
+                merged.set(String(d.name), {
                     ...d,
                     created_at: parseInt(d.created_at || "0") || Date.now()
-                };
-            });
+                });
+            }
+
+            if (dir && fs.existsSync(dir)) {
+                for (const dirent of fs.readdirSync(dir, { withFileTypes: true })) {
+                    if (!dirent.isFile() || dirent.name.startsWith(".")) continue;
+                    if (merged.has(dirent.name)) continue;
+                    merged.set(dirent.name, {
+                        id: dirent.name,
+                        name: dirent.name,
+                        file_path: path.join(dir, dirent.name),
+                        created_at: Date.now()
+                    });
+                }
+            }
+
+            return Array.from(merged.values()).sort((a, b) => Number(b.created_at ?? 0) - Number(a.created_at ?? 0));
         } catch {
             // Neo4j offline — fallback to reading the workspace directory on disk
             const projects = readProjectsJson();

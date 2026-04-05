@@ -1,0 +1,21 @@
+{
+  "name": "@yaip/ontology-sdk",
+  "version": "1.0.0",
+  "description": "Typed SDK for the Y-AIP Ontology Manager and ontology-backed datasource workflows",
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc --project tsconfig.json"
+  },
+  "devDependencies": {
+    "@types/node": "^20.12.7",
+    "typescript": "^5.4.5"
+  }
+}

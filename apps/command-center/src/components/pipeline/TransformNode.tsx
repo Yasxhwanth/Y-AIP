@@ -1,7 +1,17 @@
 import { Handle, Position } from 'reactflow';
-import { Database, Scissors, Merge, Copy, Workflow, Sparkles, MessageSquare, PlusCircle, Edit3 } from 'lucide-react';
+import { Scissors, Sparkles, MessageSquare, PlusCircle, Edit3 } from 'lucide-react';
 
-export function TransformNode({ id, data }: { id: string, data: any }) {
+type TransformNodeData = {
+    label: string;
+    columns?: { name: string; type: string }[];
+    sourceDatasetId?: string;
+    onEdit?: (nodeId: string) => void;
+    onJoin?: (nodeId: string) => void;
+    onUnion?: (nodeId: string) => void;
+    onAddOutput?: (nodeId: string) => void;
+};
+
+export function TransformNode({ id, data }: { id: string, data: TransformNodeData }) {
 
     return (
         <div className="relative group">
@@ -10,7 +20,7 @@ export function TransformNode({ id, data }: { id: string, data: any }) {
                 <div className="bg-white border border-gray-200 rounded-lg shadow-lg flex flex-col py-1.5 w-36 overflow-hidden text-[12px] font-medium text-gray-700">
                     <button
                         className="flex items-center gap-2.5 px-3 py-1.5 hover:bg-gray-50 hover:text-blue-600 transition-colors"
-                        onClick={() => data.onEdit?.(data.sourceDatasetId)}
+                        onClick={() => data.onEdit?.(id)}
                     >
                         <svg className="w-3.5 h-3.5 text-blue-600" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                             <rect x="3" y="3" width="18" height="18" rx="2" ry="2" />
@@ -37,8 +47,11 @@ export function TransformNode({ id, data }: { id: string, data: any }) {
                         </svg>
                         Join
                     </button>
-                    <button className="flex items-center gap-2.5 px-3 py-1.5 hover:bg-gray-50">
-                        <Copy className="w-3.5 h-3.5 text-orange-500" />
+                    <button
+                        className="flex items-center gap-2.5 px-3 py-1.5 hover:bg-red-50 hover:text-red-800 transition-colors"
+                        onClick={() => data.onUnion?.(id)}
+                    >
+                        <span className="w-3.5 h-3.5 border-2 border-red-600 bg-red-500 rounded-sm shrink-0" aria-hidden />
                         Union
                     </button>
 
@@ -63,7 +76,10 @@ export function TransformNode({ id, data }: { id: string, data: any }) {
                         <div className="h-px w-full bg-gray-200" />
                     </div>
 
-                    <button className="flex items-center gap-2.5 px-3 py-1.5 hover:bg-gray-50 text-amber-600 hover:bg-amber-50">
+                    <button
+                        className="flex items-center gap-2.5 px-3 py-1.5 hover:bg-gray-50 text-amber-600 hover:bg-amber-50"
+                        onClick={() => data.onAddOutput?.(id)}
+                    >
                         <PlusCircle className="w-3.5 h-3.5" />
                         Add output
                     </button>
@@ -94,7 +110,7 @@ export function TransformNode({ id, data }: { id: string, data: any }) {
 
                 {/* Edit button sticking out the bottom */}
                 <button
-                    onClick={() => data.onEdit?.(data.sourceDatasetId)}
+                    onClick={() => data.onEdit?.(id)}
                     className="absolute -bottom-6 left-1/2 -translate-x-1/2 bg-white border border-gray-300 rounded shadow-sm px-2 py-0.5 text-[11px] font-bold text-gray-600 hover:text-gray-900 flex items-center gap-1 hover:bg-gray-50 transition-colors"
                 >
                     <Edit3 className="w-3 h-3" /> Edit

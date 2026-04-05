@@ -1,0 +1,614 @@
+{
+  "branches": {
+    "Main": {
+      "nodes": [
+        {
+          "id": "dataset-f1e0daf6-db62-4117-99d8-bd02b327643b-1775398848760",
+          "position": {
+            "x": 157.4816052090864,
+            "y": 248.26621991949372
+          },
+          "data": {
+            "label": "orders_office_goods.csv",
+            "datasetId": "f1e0daf6-db62-4117-99d8-bd02b327643b",
+            "columns": [
+              {
+                "name": "dueDateTime",
+                "type": "String"
+              },
+              {
+                "name": "orderId",
+                "type": "String"
+              },
+              {
+                "name": "customer_id",
+                "type": "String"
+              },
+              {
+                "name": "orderPlacementDate",
+                "type": "String"
+              },
+              {
+                "name": "status",
+                "type": "String"
+              },
+              {
+                "name": "assignee",
+                "type": "String"
+              },
+              {
+                "name": "quantity",
+                "type": "String"
+              },
+              {
+                "name": "item_name",
+                "type": "String"
+              },
+              {
+                "name": "unit_price",
+                "type": "String"
+              },
+              {
+                "name": "days_until_due",
+                "type": "String"
+              }
+            ]
+          },
+          "type": "datasetNode",
+          "width": 260,
+          "height": 76,
+          "selected": false,
+          "positionAbsolute": {
+            "x": 157.4816052090864,
+            "y": 248.26621991949372
+          },
+          "dragging": false
+        },
+        {
+          "id": "dataset-3d4b8737-6c0f-4f1f-8438-aa6aa46efb9b-1775398848761",
+          "position": {
+            "x": 170.1837123564203,
+            "y": 70.05256333649595
+          },
+          "data": {
+            "label": "orders_bureau_transactional_system.csv",
+            "datasetId": "3d4b8737-6c0f-4f1f-8438-aa6aa46efb9b",
+            "columns": [
+              {
+                "name": "order_id",
+                "type": "String"
+              },
+              {
+                "name": "customer_id",
+                "type": "String"
+              },
+              {
+                "name": "status",
+                "type": "String"
+              },
+              {
+                "name": "assignee",
+                "type": "String"
+              },
+              {
+                "name": "quantity",
+                "type": "String"
+              },
+              {
+                "name": "item_name",
+                "type": "String"
+              },
+              {
+                "name": "unit_price",
+                "type": "String"
+              },
+              {
+                "name": "order_due_date",
+                "type": "String"
+              },
+              {
+                "name": "days_until_due",
+                "type": "String"
+              }
+            ]
+          },
+          "type": "datasetNode",
+          "width": 260,
+          "height": 76,
+          "selected": false,
+          "positionAbsolute": {
+            "x": 170.1837123564203,
+            "y": 70.05256333649595
+          },
+          "dragging": false
+        },
+        {
+          "id": "dataset-a4bf5a78-397a-4691-b390-992dd7ef0238-1775398848762",
+          "position": {
+            "x": 226.86819279414044,
+            "y": -60.01427421566228
+          },
+          "data": {
+            "label": "consolidated_customers.csv",
+            "datasetId": "a4bf5a78-397a-4691-b390-992dd7ef0238",
+            "columns": [
+              {
+                "name": "officegoods_customer_id",
+                "type": "String"
+              },
+              {
+                "name": "bureau_customer_id",
+                "type": "String"
+              },
+              {
+                "name": "consolidated_customer_id",
+                "type": "String"
+              },
+              {
+                "name": "customer_name",
+                "type": "String"
+              }
+            ]
+          },
+          "type": "datasetNode",
+          "width": 260,
+          "height": 76,
+          "selected": false,
+          "positionAbsolute": {
+            "x": 226.86819279414044,
+            "y": -60.01427421566228
+          },
+          "dragging": false
+        },
+        {
+          "id": "transform-dataset-3d4b8737-6c0f-4f1f-8438-aa6aa46efb9b-1775398848761",
+          "position": {
+            "x": 538.1486463760259,
+            "y": 81.15970044432743
+          },
+          "type": "transformNode",
+          "data": {
+            "label": "Transform path 1",
+            "sourceDatasetId": "dataset-3d4b8737-6c0f-4f1f-8438-aa6aa46efb9b-1775398848761",
+            "datasetId": "transform-dataset-3d4b8737-6c0f-4f1f-8438-aa6aa46efb9b-1775398848761",
+            "columns": [
+              {
+                "name": "order_id",
+                "type": "String"
+              },
+              {
+                "name": "customer_id",
+                "type": "String"
+              },
+              {
+                "name": "status",
+                "type": "String"
+              },
+              {
+                "name": "assignee",
+                "type": "String"
+              },
+              {
+                "name": "quantity",
+                "type": "String"
+              },
+              {
+                "name": "item_name",
+                "type": "String"
+              },
+              {
+                "name": "unit_price",
+                "type": "String"
+              },
+              {
+                "name": "order_due_date",
+                "type": "Timestamp"
+              },
+              {
+                "name": "days_until_due",
+                "type": "String"
+              }
+            ]
+          },
+          "width": 192,
+          "height": 66,
+          "selected": false,
+          "dragging": false,
+          "positionAbsolute": {
+            "x": 538.1486463760259,
+            "y": 81.15970044432743
+          }
+        },
+        {
+          "id": "transform-dataset-f1e0daf6-db62-4117-99d8-bd02b327643b-1775398848760",
+          "position": {
+            "x": 527.9926692277401,
+            "y": 252.64096801526517
+          },
+          "type": "transformNode",
+          "data": {
+            "label": "Transform path 1",
+            "columns": [
+              {
+                "name": "order_due_date",
+                "type": "Timestamp"
+              },
+              {
+                "name": "order_id",
+                "type": "String"
+              },
+              {
+                "name": "customer_id",
+                "type": "String"
+              },
+              {
+                "name": "status",
+                "type": "String"
+              },
+              {
+                "name": "assignee",
+                "type": "String"
+              },
+              {
+                "name": "quantity",
+                "type": "String"
+              },
+              {
+                "name": "item_name",
+                "type": "String"
+              },
+              {
+                "name": "unit_price",
+                "type": "String"
+              },
+              {
+                "name": "days_until_due",
+                "type": "String"
+              }
+            ],
+            "sourceDatasetId": "dataset-f1e0daf6-db62-4117-99d8-bd02b327643b-1775398848760",
+            "datasetId": "transform-dataset-f1e0daf6-db62-4117-99d8-bd02b327643b-1775398848760"
+          },
+          "width": 192,
+          "height": 66,
+          "selected": false,
+          "dragging": false,
+          "positionAbsolute": {
+            "x": 527.9926692277401,
+            "y": 252.64096801526517
+          }
+        },
+        {
+          "id": "join-transform-dataset-f1e0daf6-db62-4117-99d8-bd02b327643b-1775398848760-dataset-a4bf5a78-397a-4691-b390-992dd7ef0238-1775398848762",
+          "position": {
+            "x": 858.488046690976,
+            "y": 246.91198191527923
+          },
+          "type": "datasetNode",
+          "data": {
+            "label": "Join",
+            "columns": [
+              {
+                "name": "order_due_date",
+                "type": "Timestamp",
+                "selected": true
+              },
+              {
+                "name": "order_id",
+                "type": "String",
+                "selected": true
+              },
+              {
+                "name": "customer_id",
+                "type": "String",
+                "selected": true
+              },
+              {
+                "name": "status",
+                "type": "String",
+                "selected": true
+              },
+              {
+                "name": "assignee",
+                "type": "String",
+                "selected": true
+              },
+              {
+                "name": "quantity",
+                "type": "String",
+                "selected": true
+              },
+              {
+                "name": "item_name",
+                "type": "String",
+                "selected": true
+              },
+              {
+                "name": "unit_price",
+                "type": "String",
+                "selected": true
+              },
+              {
+                "name": "days_until_due",
+                "type": "String",
+                "selected": true
+              },
+              {
+                "name": "consolidated_customer_id",
+                "type": "String",
+                "selected": true
+              },
+              {
+                "name": "customer_name",
+                "type": "String",
+                "selected": true
+              }
+            ],
+            "datasetId": "join-transform-dataset-f1e0daf6-db62-4117-99d8-bd02b327643b-1775398848760-dataset-a4bf5a78-397a-4691-b390-992dd7ef0238-1775398848762"
+          },
+          "width": 260,
+          "height": 76,
+          "selected": false,
+          "dragging": false,
+          "positionAbsolute": {
+            "x": 858.488046690976,
+            "y": 246.91198191527923
+          }
+        },
+        {
+          "id": "join-transform-dataset-3d4b8737-6c0f-4f1f-8438-aa6aa46efb9b-1775398848761-dataset-a4bf5a78-397a-4691-b390-992dd7ef0238-1775398848762",
+          "position": {
+            "x": 872.9733164740544,
+            "y": -61.32693686110491
+          },
+          "type": "datasetNode",
+          "data": {
+            "label": "Join",
+            "columns": [
+              {
+                "name": "order_id",
+                "type": "String",
+                "selected": true
+              },
+              {
+                "name": "customer_id",
+                "type": "String",
+                "selected": true
+              },
+              {
+                "name": "status",
+                "type": "String",
+                "selected": true
+              },
+              {
+                "name": "assignee",
+                "type": "String",
+                "selected": true
+              },
+              {
+                "name": "quantity",
+                "type": "String",
+                "selected": true
+              },
+              {
+                "name": "item_name",
+                "type": "String",
+                "selected": true
+              },
+              {
+                "name": "unit_price",
+                "type": "String",
+                "selected": true
+              },
+              {
+                "name": "order_due_date",
+                "type": "Timestamp",
+                "selected": true
+              },
+              {
+                "name": "days_until_due",
+                "type": "String",
+                "selected": true
+              },
+              {
+                "name": "consolidated_customer_id",
+                "type": "String",
+                "selected": true
+              },
+              {
+                "name": "customer_name",
+                "type": "String",
+                "selected": true
+              }
+            ],
+            "datasetId": "join-transform-dataset-3d4b8737-6c0f-4f1f-8438-aa6aa46efb9b-1775398848761-dataset-a4bf5a78-397a-4691-b390-992dd7ef0238-1775398848762"
+          },
+          "width": 260,
+          "height": 76,
+          "selected": false,
+          "dragging": false,
+          "positionAbsolute": {
+            "x": 872.9733164740544,
+            "y": -61.32693686110491
+          }
+        },
+        {
+          "id": "union-join-transform-dataset-3d4b8737-6c0f-4f1f-8438-aa6aa46efb9b-1775398848761-dataset-a4bf5a78-397a-4691-b390-992dd7ef0238-1775398848762-join-transform-dataset-f1e0daf6-db62-4117-99d8-bd02b327643b-1775398848760-dataset-a4bf5a78-397a-4691-b390-992dd7ef0238-1775398848762",
+          "position": {
+            "x": 1242.6226566701112,
+            "y": 97.79252252708716
+          },
+          "type": "datasetNode",
+          "data": {
+            "label": "Union",
+            "columns": [
+              {
+                "name": "order_due_date",
+                "type": "Timestamp",
+                "selected": true
+              },
+              {
+                "name": "order_id",
+                "type": "String",
+                "selected": true
+              },
+              {
+                "name": "customer_id",
+                "type": "String",
+                "selected": true
+              },
+              {
+                "name": "status",
+                "type": "String",
+                "selected": true
+              },
+              {
+                "name": "assignee",
+                "type": "String",
+                "selected": true
+              },
+              {
+                "name": "quantity",
+                "type": "String",
+                "selected": true
+              },
+              {
+                "name": "item_name",
+                "type": "String",
+                "selected": true
+              },
+              {
+                "name": "unit_price",
+                "type": "String",
+                "selected": true
+              },
+              {
+                "name": "days_until_due",
+                "type": "String",
+                "selected": true
+              },
+              {
+                "name": "consolidated_customer_id",
+                "type": "String",
+                "selected": true
+              },
+              {
+                "name": "customer_name",
+                "type": "String",
+                "selected": true
+              }
+            ],
+            "datasetId": "union-join-transform-dataset-3d4b8737-6c0f-4f1f-8438-aa6aa46efb9b-1775398848761-dataset-a4bf5a78-397a-4691-b390-992dd7ef0238-1775398848762-join-transform-dataset-f1e0daf6-db62-4117-99d8-bd02b327643b-1775398848760-dataset-a4bf5a78-397a-4691-b390-992dd7ef0238-1775398848762",
+            "unionInputNodeIds": [
+              "join-transform-dataset-f1e0daf6-db62-4117-99d8-bd02b327643b-1775398848760-dataset-a4bf5a78-397a-4691-b390-992dd7ef0238-1775398848762",
+              "join-transform-dataset-3d4b8737-6c0f-4f1f-8438-aa6aa46efb9b-1775398848761-dataset-a4bf5a78-397a-4691-b390-992dd7ef0238-1775398848762"
+            ]
+          },
+          "width": 260,
+          "height": 76,
+          "selected": true,
+          "dragging": false,
+          "positionAbsolute": {
+            "x": 1242.6226566701112,
+            "y": 97.79252252708716
+          }
+        }
+      ],
+      "edges": [
+        {
+          "id": "edge-dataset-3d4b8737-6c0f-4f1f-8438-aa6aa46efb9b-1775398848761-transform-dataset-3d4b8737-6c0f-4f1f-8438-aa6aa46efb9b-1775398848761",
+          "source": "dataset-3d4b8737-6c0f-4f1f-8438-aa6aa46efb9b-1775398848761",
+          "target": "transform-dataset-3d4b8737-6c0f-4f1f-8438-aa6aa46efb9b-1775398848761",
+          "type": "default",
+          "animated": true,
+          "style": {
+            "stroke": "#9ca3af",
+            "strokeWidth": 2
+          }
+        },
+        {
+          "id": "edge-dataset-f1e0daf6-db62-4117-99d8-bd02b327643b-1775398848760-transform-dataset-f1e0daf6-db62-4117-99d8-bd02b327643b-1775398848760",
+          "source": "dataset-f1e0daf6-db62-4117-99d8-bd02b327643b-1775398848760",
+          "target": "transform-dataset-f1e0daf6-db62-4117-99d8-bd02b327643b-1775398848760",
+          "type": "default",
+          "animated": true,
+          "style": {
+            "stroke": "#9ca3af",
+            "strokeWidth": 2
+          }
+        },
+        {
+          "id": "edge-transform-dataset-f1e0daf6-db62-4117-99d8-bd02b327643b-1775398848760-join-transform-dataset-f1e0daf6-db62-4117-99d8-bd02b327643b-1775398848760-dataset-a4bf5a78-397a-4691-b390-992dd7ef0238-1775398848762",
+          "source": "transform-dataset-f1e0daf6-db62-4117-99d8-bd02b327643b-1775398848760",
+          "target": "join-transform-dataset-f1e0daf6-db62-4117-99d8-bd02b327643b-1775398848760-dataset-a4bf5a78-397a-4691-b390-992dd7ef0238-1775398848762",
+          "type": "default",
+          "animated": true,
+          "style": {
+            "stroke": "#6366f1",
+            "strokeWidth": 2
+          }
+        },
+        {
+          "id": "edge-dataset-a4bf5a78-397a-4691-b390-992dd7ef0238-1775398848762-join-transform-dataset-f1e0daf6-db62-4117-99d8-bd02b327643b-1775398848760-dataset-a4bf5a78-397a-4691-b390-992dd7ef0238-1775398848762",
+          "source": "dataset-a4bf5a78-397a-4691-b390-992dd7ef0238-1775398848762",
+          "target": "join-transform-dataset-f1e0daf6-db62-4117-99d8-bd02b327643b-1775398848760-dataset-a4bf5a78-397a-4691-b390-992dd7ef0238-1775398848762",
+          "type": "default",
+          "animated": true,
+          "style": {
+            "stroke": "#6366f1",
+            "strokeWidth": 2
+          }
+        },
+        {
+          "id": "edge-transform-dataset-3d4b8737-6c0f-4f1f-8438-aa6aa46efb9b-1775398848761-join-transform-dataset-3d4b8737-6c0f-4f1f-8438-aa6aa46efb9b-1775398848761-dataset-a4bf5a78-397a-4691-b390-992dd7ef0238-1775398848762",
+          "source": "transform-dataset-3d4b8737-6c0f-4f1f-8438-aa6aa46efb9b-1775398848761",
+          "target": "join-transform-dataset-3d4b8737-6c0f-4f1f-8438-aa6aa46efb9b-1775398848761-dataset-a4bf5a78-397a-4691-b390-992dd7ef0238-1775398848762",
+          "type": "default",
+          "animated": true,
+          "style": {
+            "stroke": "#6366f1",
+            "strokeWidth": 2
+          }
+        },
+        {
+          "id": "edge-dataset-a4bf5a78-397a-4691-b390-992dd7ef0238-1775398848762-join-transform-dataset-3d4b8737-6c0f-4f1f-8438-aa6aa46efb9b-1775398848761-dataset-a4bf5a78-397a-4691-b390-992dd7ef0238-1775398848762",
+          "source": "dataset-a4bf5a78-397a-4691-b390-992dd7ef0238-1775398848762",
+          "target": "join-transform-dataset-3d4b8737-6c0f-4f1f-8438-aa6aa46efb9b-1775398848761-dataset-a4bf5a78-397a-4691-b390-992dd7ef0238-1775398848762",
+          "type": "default",
+          "animated": true,
+          "style": {
+            "stroke": "#6366f1",
+            "strokeWidth": 2
+          }
+        },
+        {
+          "id": "edge-join-transform-dataset-f1e0daf6-db62-4117-99d8-bd02b327643b-1775398848760-dataset-a4bf5a78-397a-4691-b390-992dd7ef0238-1775398848762-union-join-transform-dataset-3d4b8737-6c0f-4f1f-8438-aa6aa46efb9b-1775398848761-dataset-a4bf5a78-397a-4691-b390-992dd7ef0238-1775398848762-join-transform-dataset-f1e0daf6-db62-4117-99d8-bd02b327643b-1775398848760-dataset-a4bf5a78-397a-4691-b390-992dd7ef0238-1775398848762",
+          "source": "join-transform-dataset-f1e0daf6-db62-4117-99d8-bd02b327643b-1775398848760-dataset-a4bf5a78-397a-4691-b390-992dd7ef0238-1775398848762",
+          "target": "union-join-transform-dataset-3d4b8737-6c0f-4f1f-8438-aa6aa46efb9b-1775398848761-dataset-a4bf5a78-397a-4691-b390-992dd7ef0238-1775398848762-join-transform-dataset-f1e0daf6-db62-4117-99d8-bd02b327643b-1775398848760-dataset-a4bf5a78-397a-4691-b390-992dd7ef0238-1775398848762",
+          "type": "default",
+          "animated": true,
+          "style": {
+            "stroke": "#dc2626",
+            "strokeWidth": 2
+          }
+        },
+        {
+          "id": "edge-join-transform-dataset-3d4b8737-6c0f-4f1f-8438-aa6aa46efb9b-1775398848761-dataset-a4bf5a78-397a-4691-b390-992dd7ef0238-1775398848762-union-join-transform-dataset-3d4b8737-6c0f-4f1f-8438-aa6aa46efb9b-1775398848761-dataset-a4bf5a78-397a-4691-b390-992dd7ef0238-1775398848762-join-transform-dataset-f1e0daf6-db62-4117-99d8-bd02b327643b-1775398848760-dataset-a4bf5a78-397a-4691-b390-992dd7ef0238-1775398848762",
+          "source": "join-transform-dataset-3d4b8737-6c0f-4f1f-8438-aa6aa46efb9b-1775398848761-dataset-a4bf5a78-397a-4691-b390-992dd7ef0238-1775398848762",
+          "target": "union-join-transform-dataset-3d4b8737-6c0f-4f1f-8438-aa6aa46efb9b-1775398848761-dataset-a4bf5a78-397a-4691-b390-992dd7ef0238-1775398848762-join-transform-dataset-f1e0daf6-db62-4117-99d8-bd02b327643b-1775398848760-dataset-a4bf5a78-397a-4691-b390-992dd7ef0238-1775398848762",
+          "type": "default",
+          "animated": true,
+          "style": {
+            "stroke": "#dc2626",
+            "strokeWidth": 2
+          }
+        }
+      ]
+    }
+  },
+  "outputs": [],
+  "deployState": null,
+  "transforms": [],
+  "activeBranch": "Main",
+  "savedAt": "2026-04-05T17:19:33.010Z"
+}
