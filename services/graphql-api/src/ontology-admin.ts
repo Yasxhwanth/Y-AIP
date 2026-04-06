@@ -40,6 +40,9 @@ export async function registerOntologyAdminRoutes(app: FastifyInstance, driver: 
                 properties: r.get("properties"),
                 implements: r.get("implements").filter((x: any) => x != null)
             }));
+        } catch (error) {
+            console.error("ObjectType listing error (Neo4j offline):", error);
+            return [];
         } finally { await session.close(); }
     });
 
@@ -175,6 +178,9 @@ export async function registerOntologyAdminRoutes(app: FastifyInstance, driver: 
                 ORDER BY l.api_name
             `);
             return result.records.map(r => ({ ...r.get("link_type"), source: r.get("source"), source_display: r.get("source_display"), target: r.get("target"), target_display: r.get("target_display") }));
+        } catch (error) {
+            console.error("LinkType listing error (Neo4j offline):", error);
+            return [];
         } finally { await session.close(); }
     });
 
@@ -221,6 +227,9 @@ export async function registerOntologyAdminRoutes(app: FastifyInstance, driver: 
                 parameters: r.get("parameters"),
                 targets: r.get("targets").filter((x: any) => x != null)
             }));
+        } catch (error) {
+            console.error("ActionType listing error (Neo4j offline):", error);
+            return [];
         } finally { await session.close(); }
     });
 
@@ -354,6 +363,9 @@ export async function registerOntologyAdminRoutes(app: FastifyInstance, driver: 
                 properties: r.get("properties"),
                 implemented_by: r.get("implemented_by").filter((x: any) => x != null)
             }));
+        } catch (error) {
+            console.error("Interface listing error (Neo4j offline):", error);
+            return [];
         } finally { await session.close(); }
     });
 
@@ -510,6 +522,26 @@ export async function registerOntologyAdminRoutes(app: FastifyInstance, driver: 
                     created_at: typeof f.created_at?.toNumber === 'function' ? f.created_at.toNumber() : (f.created_at?.low ?? f.created_at)
                 };
             });
+        } catch {
+            // Neo4j offline — fallback to scanning disk for subfolders
+            const projects = readProjectsJson();
+            const p = projects.find(pr => pr["id"] === id);
+            if (!p || !p["folder_path"]) return [];
+
+            const dir = p["folder_path"] as string;
+            if (fs.existsSync(dir)) {
+                try {
+                    return fs.readdirSync(dir, { withFileTypes: true })
+                        .filter(dirent => dirent.isDirectory() && !dirent.name.startsWith("."))
+                        .map(dirent => ({
+                            id: dirent.name,
+                            name: dirent.name,
+                            folder_path: path.join(dir, dirent.name),
+                            created_at: Date.now()
+                        }));
+                } catch { return []; }
+            }
+            return [];
         } finally { await session.close(); }
     });
 
@@ -573,7 +605,7 @@ export async function registerOntologyAdminRoutes(app: FastifyInstance, driver: 
             const actionTypes = await session.run(`
                 MATCH (a:OntologyActionType)
                 OPTIONAL MATCH (a)-[:HAS_PARAMETER]->(p:OntologyActionParameter)
-                RETURN a { .* } as action_type, collect(p { .* }) as parameters ORDER BY action_type.display_name
+                RETURN a { .* } as action_type, collect(p { .* }) as parameters ORDER BY a.display_name
             `);
 
             const interfaces = await session.run(`
@@ -607,6 +639,14 @@ export async function registerOntologyAdminRoutes(app: FastifyInstance, driver: 
                     properties: r.get("properties").filter((p: any) => p.api_name),
                     implemented_by: r.get("implemented_by").filter((x: any) => x != null)
                 }))
+            };
+        } catch (error) {
+            console.error("Schema listing error (Neo4j offline):", error);
+            return {
+                object_types: [],
+                link_types: [],
+                action_types: [],
+                interfaces: []
             };
         } finally { await session.close(); }
     });

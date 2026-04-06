@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import {
     Folder, FileText,
     Trash2, ChevronRight, Share,
@@ -38,6 +38,7 @@ interface ProjectInfo {
 
 export default function ProjectWorkspace() {
     const params = useParams();
+    const router = useRouter();
     const projectId = params.id as string;
 
     const [project, setProject] = useState<ProjectInfo | null>(null);
@@ -310,7 +311,15 @@ export default function ProjectWorkspace() {
                                     </tr>
                                 ) : (
                                     contents.map((item, idx) => (
-                                        <tr key={item.id || idx} className="hover:bg-[#f5f8fa] cursor-pointer group">
+                                        <tr
+                                            key={item.id || idx}
+                                            className="hover:bg-[#f5f8fa] cursor-pointer group"
+                                            onClick={() => {
+                                                if (item.type === 'dataset') {
+                                                    router.push(`/dataset/${item.id}?projectId=${projectId}`);
+                                                }
+                                            }}
+                                        >
                                             <td className="px-8 py-[10px] font-medium text-[#2b6ba3] text-[13px]">
                                                 <div className="flex items-center gap-3">
                                                     {item.type === 'folder' ? (

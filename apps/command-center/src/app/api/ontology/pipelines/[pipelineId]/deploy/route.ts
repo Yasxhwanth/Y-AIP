@@ -19,7 +19,8 @@ type DeployRequest = {
 };
 
 function getProjectsPath() {
-    return path.join(process.cwd(), "data", "projects.json");
+    // Look for projects.json at the repository root (../../data/projects.json relative to the app execution directory)
+    return path.join(process.cwd(), "..", "..", "data", "projects.json");
 }
 
 function getPipelineStatePath(pipelineId: string) {

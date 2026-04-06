@@ -6,7 +6,7 @@ import {
     Download, Plus, Settings, ChevronRight, CheckCircle2,
     Share, FileText, Database, UploadCloud, Edit3, Grid,
     Trash2, Search, X, Sparkles, BarChart2, Info, ChevronDown, Workflow, Type, Save, GitBranch,
-    MousePointer2, LayoutGrid, Filter, Sigma, Layers, Undo2, Redo2, Star
+    MousePointer2, LayoutGrid, Filter, Sigma, Layers, Undo2, Redo2, Star, Clock as LucideClock, RefreshCw, Lock as LucideLock
 } from "lucide-react";
 import { AddDataModal } from "@/components/pipeline/AddDataModal";
 import { UploadFilesModal } from "@/components/files/UploadFilesModal";
@@ -45,6 +45,7 @@ interface PipelineOutput {
     name: string;
     fileName: string;
     columns: DatasetColumn[];
+    selectedColumnNames?: string[]; // If undefined, all columns are selected
     status: "draft" | "deploying" | "deployed";
     deployedAt?: string;
     filePath?: string;
@@ -135,9 +136,11 @@ function applyTransformsToPreview(
         if (transform.type === "Drop columns") {
             const dropColumns = readTransformStringArray(transform.params, "columns");
             if (dropColumns.length === 0) continue;
-            const drop = new Set(dropColumns);
-            columns = columns.filter((column) => !drop.has(column.name));
-            rows = rows.map((row) => Object.fromEntries(Object.entries(row).filter(([key]) => !drop.has(key))));
+            const dropNormalized = new Set(dropColumns.map(c => c.toLowerCase()));
+            columns = columns.filter((column) => !dropNormalized.has(column.name.toLowerCase()));
+            rows = rows.map((row) => Object.fromEntries(
+                Object.entries(row).filter(([key]) => !dropNormalized.has(key.toLowerCase()))
+            ));
         }
 
         if (transform.type === "Select columns") {
@@ -152,16 +155,21 @@ function applyTransformsToPreview(
             const source = readTransformString(transform.params, "source");
             const target = readTransformString(transform.params, "target");
             if (!source || !target || source === target) continue;
-            // Exact match first, then case-insensitive fallback
-            const matchedCol = columns.find(c => c.name === source)
-                ?? columns.find(c => c.name.toLowerCase() === source.toLowerCase());
+
+            // Case-insensitive match for the column
+            const matchedCol = columns.find(c => c.name.toLowerCase() === source.toLowerCase());
             if (!matchedCol) continue;
+
             const actualSource = matchedCol.name;
             columns = columns.map((column) => column.name === actualSource ? { ...column, name: target } : column);
+
             rows = rows.map((row) => {
-                if (!(actualSource in row)) return row;
-                const next = { ...row, [target]: row[actualSource] };
-                delete next[actualSource];
+                // Find the actual key in the row object (case-insensitive)
+                const actualKey = Object.keys(row).find(k => k.toLowerCase() === source.toLowerCase());
+                if (!actualKey) return row;
+
+                const next = { ...row, [target]: row[actualKey] };
+                if (actualKey !== target) delete next[actualKey];
                 return next;
             });
         }
@@ -873,6 +881,7 @@ export default function PipelineBuilderWorkspace() {
     const [deployState, setDeployState] = useState<DeployState | null>(null);
     const [isDeploying, setIsDeploying] = useState(false);
     const [persistedBranches, setPersistedBranches] = useState<Record<string, { nodes?: Node[]; edges?: Edge[] }>>({});
+    const [pendingOutputSourceId, setPendingOutputSourceId] = useState<string | null>(null);
 
 
     const [activeTransformNodeId, setActiveTransformNodeId] = useState<string | null>(null);
@@ -1225,12 +1234,19 @@ export default function PipelineBuilderWorkspace() {
     }, [outputs]);
 
     const handleAddOutput = useCallback((sourceNodeId: string) => {
+        setPendingOutputSourceId(sourceNodeId);
+        setSelectedOutputId(null);
+        setRightPanelMode("outputs");
+    }, []);
+
+    const handleCreateNewDatasetOutput = useCallback((sourceNodeId: string) => {
         const sourceNode = nodes.find((node) => node.id === sourceNodeId);
         if (!sourceNode) return;
 
         const outputId = `out-${Date.now()}`;
         const outputNodeId = `output-${outputId}`;
-        const baseName = `new_dataset_${new Date().toISOString().slice(0, 16).replace(/[:T]/g, "_")}`;
+        const dateStr = new Date().toLocaleDateString('en-US', { month: '2-digit', day: '2-digit', year: 'numeric' });
+        const baseName = `New dataset [${dateStr}]...`;
         const columns = (sourceNode.data?.columns ?? DEFAULT_COLUMNS) as DatasetColumn[];
 
         const nextOutput: PipelineOutput = {
@@ -1240,11 +1256,13 @@ export default function PipelineBuilderWorkspace() {
             name: baseName,
             fileName: `${sanitizeOutputName(baseName)}.csv`,
             columns,
+            selectedColumnNames: columns.map(c => c.name),
             status: "draft",
         };
 
         setOutputs((prev) => [...prev, nextOutput]);
         setSelectedOutputId(outputId);
+        setPendingOutputSourceId(null);
         setRightPanelMode("outputs");
 
         setNodes((prev) => [
@@ -2349,16 +2367,33 @@ export default function PipelineBuilderWorkspace() {
                             <button type="button" className="h-8 px-3 text-[13px] font-semibold text-gray-500 bg-white border border-gray-300 rounded cursor-not-allowed opacity-70 flex items-center gap-1.5" disabled>
                                 <FileText className="w-4 h-4 text-gray-400" /> Propose
                             </button>
-                            <button
-                                type="button"
-                                onClick={() => setRightPanelMode("deploy")}
-                                disabled={outputs.length === 0}
-                                className="h-8 px-3 text-[13px] font-semibold text-white bg-[#2563eb] hover:bg-[#1d4ed8] rounded border border-blue-700 flex items-center gap-2 shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
-                            >
-                                Deploy <Settings className="w-3.5 h-3.5 text-blue-100" />
-                            </button>
-                            <div className="flex items-center h-8 px-2 bg-[#ecfdf3] text-[#0d6832] text-[13px] font-semibold rounded border border-[#b4dfc4] gap-1">
-                                <CheckCircle2 className="w-3.5 h-3.5" /> {outputs.length}
+                            <div className="relative group/deploy flex shrink-0">
+                                <button
+                                    type="button"
+                                    onClick={() => setRightPanelMode("deploy")}
+                                    disabled={outputs.length === 0}
+                                    className="h-8 px-3 text-[13px] font-semibold text-white bg-[#2563eb] hover:bg-[#1d4ed8] rounded-l border border-blue-700 flex items-center gap-2 shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                                >
+                                    Deploy
+                                </button>
+                                <button
+                                    className="h-8 px-1.5 bg-[#2563eb] hover:bg-[#1d4ed8] rounded-r border-y border-r border-blue-700 flex items-center justify-center text-white border-l border-blue-800 disabled:opacity-50 disabled:cursor-not-allowed"
+                                    disabled={outputs.length === 0}
+                                >
+                                    <ChevronDown className="w-3.5 h-3.5" />
+                                </button>
+                                <div className="absolute right-0 top-full mt-1 w-56 bg-[#1f2937] text-white text-[12px] rounded shadow-xl py-2 px-3 z-[100] opacity-0 group-hover/deploy:opacity-100 pointer-events-none transition-opacity">
+                                    <div className="flex items-center justify-between">
+                                        <span>Deploy all pipeline outputs</span>
+                                        <Settings className="w-3.5 h-3.5 opacity-60" />
+                                    </div>
+                                </div>
+                            </div>
+                            <div className="flex items-center h-8 px-2 bg-[#ecfdf3] text-[#0d6832] text-[13px] font-semibold rounded border border-[#b4dfc4] gap-1 group relative cursor-pointer" title="20 healthy outputs">
+                                <CheckCircle2 className="w-3.5 h-3.5" /> 20
+                                <div className="absolute top-full mt-1 right-0 bg-white border border-gray-200 shadow-lg rounded p-2 text-[11px] text-gray-600 opacity-0 group-hover:opacity-100 pointer-events-none z-50 whitespace-nowrap font-normal">
+                                    All outputs are healthy
+                                </div>
                             </div>
                             <button type="button" className="flex items-center gap-1.5 h-8 px-3 text-[13px] font-medium text-gray-700 hover:bg-gray-50 border border-gray-300 rounded bg-white">
                                 <Share className="w-3.5 h-3.5 text-gray-500" /> Share
@@ -3103,7 +3138,10 @@ export default function PipelineBuilderWorkspace() {
                 {!activeTransformNodeId && (
                     <div className="w-[300px] border-l border-gray-200 bg-white flex flex-col shrink-0 overflow-y-auto">
                         <div className="h-10 border-b border-gray-200 flex items-center justify-between px-3 shrink-0">
-                            <span className="text-[13px] font-bold text-gray-900">{rightPanelMode === "deploy" ? "Deploy this pipeline" : "Pipeline outputs"}</span>
+                            <span className="text-[13px] font-bold text-gray-900">{
+                                rightPanelMode === "deploy" ? "Deploy this pipeline" :
+                                    pendingOutputSourceId ? "Select output type" : "Pipeline outputs"
+                            }</span>
                             <div className="flex items-center gap-2">
                                 <button className="text-gray-400 hover:text-gray-700"><Settings className="w-3.5 h-3.5" /></button>
                                 <button
@@ -3123,44 +3161,170 @@ export default function PipelineBuilderWorkspace() {
                                 <div className="p-4 border-b border-gray-200 text-[12px] text-gray-500">
                                     Update pipeline logic and build target outputs.
                                 </div>
-                                <div className="p-4 space-y-4 flex-1">
+                                <div className="p-4 space-y-5 flex-1 overflow-y-auto">
                                     <div>
                                         <div className="text-[12px] font-bold text-gray-900 mb-2">Last deployment</div>
-                                        <div className="text-[12px] text-gray-600">{deployState?.lastDeploymentAt ? new Date(deployState.lastDeploymentAt).toLocaleString() : "None"}</div>
+                                        <div className="text-[12px] text-gray-600 font-medium">{deployState?.lastDeploymentAt ? new Date(deployState.lastDeploymentAt).toLocaleString() : "None"}</div>
                                     </div>
-                                    <div>
-                                        <div className="text-[12px] font-bold text-gray-900 mb-2">Select outputs to build</div>
-                                        <div className="space-y-2">
-                                            {outputs.length === 0 ? (
-                                                <div className="text-[12px] text-gray-500 italic">No outputs defined</div>
-                                            ) : outputs.map((output) => (
-                                                <label key={output.id} className="flex items-center gap-2 text-[12px] text-gray-800">
-                                                    <input type="checkbox" checked readOnly className="accent-blue-600" />
-                                                    <span className="font-medium">{output.name}</span>
-                                                </label>
-                                            ))}
-                                        </div>
-                                    </div>
+
+                                    {!isDeploying && (
+                                        <>
+                                            <div className="pt-1">
+                                                <div className="flex items-center justify-between mb-3 text-[12px]">
+                                                    <span className="font-bold text-gray-900">Compute profile</span>
+                                                    <button className="text-blue-600 font-semibold hover:underline">Configure</button>
+                                                </div>
+                                                <div className="flex gap-2">
+                                                    <div className="flex-1 flex flex-col gap-1">
+                                                        <div className="text-[10px] uppercase font-bold text-gray-400 tracking-wider">Default</div>
+                                                        <div className="px-3 py-1.5 border border-gray-200 rounded text-[12px] bg-gray-50 flex items-center justify-between">
+                                                            <span className="font-medium">Extra small</span>
+                                                            <ChevronDown className="w-3 h-3 text-gray-400" />
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </div>
+
+                                            <div>
+                                                <div className="text-[12px] font-bold text-gray-900 mb-2">Select outputs to build</div>
+                                                <div className="space-y-2 border border-gray-100 rounded p-2">
+                                                    <div className="flex items-center gap-2 text-[12px] text-gray-800">
+                                                        <ChevronDown className="w-3 h-3 text-gray-400" />
+                                                        <input type="checkbox" checked readOnly className="accent-blue-600" />
+                                                        <span className="font-bold">All</span>
+                                                    </div>
+                                                    <div className="ml-5 flex items-center gap-2 text-[12px] text-gray-800">
+                                                        <ChevronDown className="w-3 h-3 text-gray-400" />
+                                                        <input type="checkbox" checked readOnly className="accent-blue-600" />
+                                                        <span className="font-bold">Single jobs</span>
+                                                    </div>
+                                                    <div className="ml-10 space-y-2">
+                                                        {outputs.length === 0 ? (
+                                                            <div className="text-[12px] text-gray-500 italic">No outputs defined</div>
+                                                        ) : outputs.map((output) => (
+                                                            <label key={output.id} className="flex items-center gap-2 text-[12px] text-gray-800 cursor-pointer group">
+                                                                <input type="checkbox" checked readOnly className="accent-blue-600" />
+                                                                <Grid className="w-3 h-3 text-blue-500" />
+                                                                <span className="font-medium group-hover:text-blue-600">{output.name}</span>
+                                                            </label>
+                                                        ))}
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </>
+                                    )}
+
                                     {isDeploying && (
-                                        <div className="rounded border border-blue-200 bg-blue-50 px-3 py-2 text-[12px] text-blue-700">
-                                            Running task 1/1. Writing output datasets into the project workspace.
+                                        <div className="space-y-4">
+                                            <div className="bg-[#f8f9fa] border border-gray-200 rounded p-4 shadow-sm">
+                                                <div className="flex items-center justify-between mb-4">
+                                                    <div className="flex items-center gap-2">
+                                                        <span className="w-4 h-4 rounded-full border-2 border-blue-500 border-t-transparent animate-spin" />
+                                                        <span className="text-[14px] font-bold text-gray-900">Running task 1/1</span>
+                                                    </div>
+                                                    <div className="text-[11px] text-gray-400 font-mono">1/1</div>
+                                                </div>
+                                                <div className="grid grid-cols-2 gap-4 text-[12px] mb-6">
+                                                    <div>
+                                                        <div className="text-gray-400 mb-0.5 uppercase text-[10px] font-bold tracking-wider">Start time</div>
+                                                        <div className="text-gray-700 font-medium">Aug 28, 2025, 3:56 PM</div>
+                                                    </div>
+                                                    <div>
+                                                        <div className="text-gray-400 mb-0.5 uppercase text-[10px] font-bold tracking-wider">Duration</div>
+                                                        <div className="text-gray-700 font-medium">11s</div>
+                                                    </div>
+                                                </div>
+
+                                                <div className="space-y-3 pt-3 border-t border-gray-100">
+                                                    <div className="text-[10px] font-bold text-gray-500 uppercase tracking-wider mb-2">Deployment tasks</div>
+                                                    <div className="flex items-center gap-2 text-[12px] text-gray-700">
+                                                        <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                                                        <span className="font-medium">Deployed logic for 1 target</span>
+                                                    </div>
+                                                    <div className="flex items-center gap-2 text-[12px] text-gray-700">
+                                                        <span className="w-4 h-4 rounded-full border-2 border-blue-400 border-t-transparent animate-spin shrink-0" />
+                                                        <span className="font-medium">Building output (0/1)</span>
+                                                        <button className="ml-auto text-blue-600 font-semibold hover:underline">Build report</button>
+                                                    </div>
+                                                </div>
+                                            </div>
+
+                                            <button className="w-full py-2 border border-red-200 text-red-600 text-[13px] font-bold rounded hover:bg-red-50 transition-colors">
+                                                Cancel deployment
+                                            </button>
+                                            <button className="w-full py-2 bg-blue-600 text-white text-[13px] font-bold rounded hover:bg-blue-700 shadow-md transition-all active:scale-[0.98]">
+                                                View deployment history
+                                            </button>
                                         </div>
                                     )}
                                 </div>
                                 <div className="p-4 border-t border-gray-200 flex items-center gap-2">
                                     <button
                                         onClick={() => setRightPanelMode("outputs")}
-                                        className="flex-1 py-2 text-[12px] font-semibold text-gray-700 bg-white border border-gray-300 rounded hover:bg-gray-50"
+                                        className="flex-1 py-1.5 text-[12px] font-semibold text-gray-700 bg-white border border-gray-300 rounded hover:bg-gray-50 flex items-center justify-center gap-1.5"
                                     >
-                                        View outputs
+                                        <Grid className="w-3 h-3" /> View changes
                                     </button>
                                     <button
                                         onClick={() => void handleDeployPipeline()}
                                         disabled={outputs.length === 0 || isDeploying}
-                                        className="flex-1 py-2 text-[12px] font-bold text-white bg-[#1a7f37] rounded hover:bg-[#156d2f] disabled:opacity-45 disabled:cursor-not-allowed"
+                                        className="flex-2 py-1.5 px-4 text-[12px] font-bold text-white bg-[#1a7f37] rounded hover:bg-[#156d2f] disabled:opacity-45 disabled:cursor-not-allowed flex items-center justify-center gap-1.5"
                                     >
-                                        {isDeploying ? "Deploying..." : "Deploy pipeline"}
+                                        {isDeploying ? (
+                                            <><span className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin" /> Deploying...</>
+                                        ) : (
+                                            <><Settings className="w-3 h-3 rotate-90" /> Deploy pipeline</>
+                                        )}
                                     </button>
+                                </div>
+                            </div>
+                        ) : (pendingOutputSourceId && !selectedOutputId) ? (
+                            <div className="flex-1 p-5 overflow-y-auto">
+                                <div className="flex items-center gap-2 text-gray-500 mb-6 cursor-pointer hover:text-gray-900 transition-colors" onClick={() => setPendingOutputSourceId(null)}>
+                                    <ChevronRight className="w-4 h-4 rotate-180" />
+                                    <span className="text-[12px] font-medium">Back to outputs</span>
+                                </div>
+
+                                <h4 className="text-[15px] font-bold text-gray-900 mb-1">Add output</h4>
+                                <p className="text-[12px] text-gray-500 mb-6 leading-relaxed">Choose how you would like to write the data from <span className="font-bold text-gray-700">{nodes.find(n => n.id === pendingOutputSourceId)?.data?.label}</span></p>
+
+                                <div className="space-y-3">
+                                    <button
+                                        onClick={() => handleCreateNewDatasetOutput(pendingOutputSourceId)}
+                                        className="w-full flex items-center gap-3 p-3 border border-gray-200 rounded-lg hover:border-blue-400 hover:bg-blue-50/50 transition-all text-left group shadow-sm"
+                                    >
+                                        <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center group-hover:bg-blue-600 transition-colors shrink-0">
+                                            <Database className="w-5 h-5 text-blue-600 group-hover:text-white" />
+                                        </div>
+                                        <div className="flex-1 min-w-0">
+                                            <div className="text-[13.5px] font-bold text-gray-900 group-hover:text-blue-700 transition-colors">New dataset</div>
+                                            <div className="text-[11.5px] text-gray-500 font-medium">Create and deploy a new dataset within the current project.</div>
+                                        </div>
+                                    </button>
+
+                                    <div className="opacity-50 cursor-not-allowed">
+                                        <div className="w-full flex items-center gap-3 p-3 border border-gray-100 rounded-lg text-left bg-gray-50/30">
+                                            <div className="w-10 h-10 bg-gray-100 rounded-lg flex items-center justify-center shrink-0">
+                                                <UploadCloud className="w-5 h-5 text-gray-400" />
+                                            </div>
+                                            <div className="flex-1 min-w-0">
+                                                <div className="text-[13.5px] font-bold text-gray-400">Stream</div>
+                                                <div className="text-[11.5px] text-gray-400 font-medium">Write to an existing stream or create a new one.</div>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <div className="opacity-50 cursor-not-allowed">
+                                        <div className="w-full flex items-center gap-3 p-3 border border-gray-100 rounded-lg text-left bg-gray-50/30">
+                                            <div className="w-10 h-10 bg-gray-100 rounded-lg flex items-center justify-center shrink-0">
+                                                <Plus className="w-5 h-5 text-gray-400" />
+                                            </div>
+                                            <div className="flex-1 min-w-0">
+                                                <div className="text-[13.5px] font-bold text-gray-400">Existing dataset</div>
+                                                <div className="text-[11.5px] text-gray-400 font-medium">Select an existing dataset as the write target.</div>
+                                            </div>
+                                        </div>
+                                    </div>
                                 </div>
                             </div>
                         ) : outputs.length === 0 ? (
@@ -3216,8 +3380,10 @@ export default function PipelineBuilderWorkspace() {
                                                             setOutputs((prev) => prev.map((output) => output.id === selectedOutput.id ? { ...output, name: value, fileName: `${sanitizeOutputName(value)}.csv` } : output));
                                                             setNodes((prev) => prev.map((node) => node.id === selectedOutput.nodeId ? { ...node, data: { ...node.data, label: value } } : node));
                                                         }}
-                                                        className="w-full border border-gray-300 rounded px-3 py-2 text-[13px] text-gray-900"
+                                                        className="w-full border border-gray-300 rounded px-3 py-2 text-[13px] text-gray-900 focus:ring-1 focus:ring-blue-500 outline-none"
+                                                        placeholder="e.g. all_orders"
                                                     />
+                                                    <p className="mt-1 text-[10px] text-gray-400 italic">Rename this output to <span className="font-bold text-gray-500">all_orders</span> for the tutorial.</p>
                                                 </div>
                                                 <div>
                                                     <div className="text-[11px] font-bold uppercase tracking-wider text-gray-500 mb-1">File name</div>
@@ -3229,14 +3395,73 @@ export default function PipelineBuilderWorkspace() {
                                                 </div>
                                                 <div>
                                                     <div className="text-[11px] font-bold uppercase tracking-wider text-gray-500 mb-2">Mapped columns</div>
-                                                    <div className="max-h-[320px] overflow-y-auto border border-gray-200 rounded">
-                                                        {selectedOutput.columns.map((column) => (
-                                                            <div key={column.name} className="flex items-center justify-between px-3 py-2 border-b border-gray-100 last:border-b-0 text-[12px]">
-                                                                <span className="text-gray-900 font-medium">{column.name}</span>
-                                                                <span className="text-gray-500">{column.type}</span>
-                                                            </div>
-                                                        ))}
+                                                    <div className="max-h-[320px] overflow-y-auto border border-gray-200 rounded bg-white">
+                                                        {selectedOutput.columns.map((column) => {
+                                                            const isSelected = !selectedOutput.selectedColumnNames || selectedOutput.selectedColumnNames.includes(column.name);
+                                                            const typeLower = column.type.toLowerCase();
+                                                            return (
+                                                                <div key={column.name} className="flex items-center gap-3 px-3 py-2 border-b border-gray-100 last:border-b-0 text-[12px] group hover:bg-blue-50/30 transition-colors">
+                                                                    <input
+                                                                        type="checkbox"
+                                                                        checked={isSelected}
+                                                                        onChange={(e) => {
+                                                                            const checked = e.target.checked;
+                                                                            const currentSelected = selectedOutput.selectedColumnNames ?? selectedOutput.columns.map(c => c.name);
+                                                                            const nextSelected = checked
+                                                                                ? [...currentSelected, column.name]
+                                                                                : currentSelected.filter(c => c !== column.name);
+                                                                            setOutputs(prev => prev.map(o => o.id === selectedOutput.id ? { ...o, selectedColumnNames: nextSelected } : o));
+                                                                        }}
+                                                                        className="w-3.5 h-3.5 rounded border-gray-300 accent-blue-600 cursor-pointer"
+                                                                    />
+                                                                    <div className="flex items-center gap-2 flex-1 min-w-0">
+                                                                        {typeLower.includes("string") ? <span className="text-[10px] font-bold bg-blue-100 text-blue-700 px-1 rounded shrink-0">abc</span> :
+                                                                            typeLower.includes("int") || typeLower.includes("long") || typeLower.includes("double") ? <span className="text-[10px] font-bold bg-emerald-100 text-emerald-700 px-1 rounded shrink-0">123</span> :
+                                                                                typeLower.includes("time") || typeLower.includes("date") ? <LucideClock className="w-3 h-3 text-amber-600 shrink-0" /> :
+                                                                                    <div className="w-3 h-3 bg-gray-200 rounded shrink-0" />}
+                                                                        <span className={`text-gray-900 font-medium truncate ${!isSelected ? "opacity-40" : ""}`}>{column.name}</span>
+                                                                    </div>
+                                                                    <div className="hidden group-hover:flex items-center gap-1.5 shrink-0">
+                                                                        <button className="text-gray-400 hover:text-gray-600"><Edit3 className="w-3 h-3" /></button>
+                                                                        <button className="text-gray-400 hover:text-red-500"><X className="w-3 h-3" /></button>
+                                                                    </div>
+                                                                </div>
+                                                            );
+                                                        })}
                                                     </div>
+                                                    <div className="mt-2 flex items-center justify-between">
+                                                        <div className="flex items-center gap-3">
+                                                            <button className="text-[11px] font-bold text-blue-600 hover:underline flex items-center gap-1">
+                                                                <RefreshCw className="w-2.5 h-2.5" /> Use upstream schema
+                                                            </button>
+                                                            <button className="text-[11px] font-bold text-blue-600 hover:underline flex items-center gap-1">
+                                                                <Plus className="w-2.5 h-2.5" /> Add column
+                                                            </button>
+                                                        </div>
+                                                        <span className="text-[10px] text-gray-400 font-medium">
+                                                            {selectedOutput.selectedColumnNames?.length ?? selectedOutput.columns.length} of {selectedOutput.columns.length} selected
+                                                        </span>
+                                                    </div>
+                                                </div>
+
+                                                <div className="pt-2 space-y-1">
+                                                    {[
+                                                        { label: "Configure expectations", icon: <CheckCircle2 className="w-3.5 h-3.5" /> },
+                                                        { label: "Configure write mode", icon: <Database className="w-3.5 h-3.5" />, value: "Snapshot" },
+                                                        { label: "Configure write format", icon: <FileText className="w-3.5 h-3.5" />, value: "Parquet" },
+                                                        { label: "Configure markings", icon: <LucideLock className="w-3.5 h-3.5" /> }
+                                                    ].map((item, idx) => (
+                                                        <div key={idx} className="flex items-center justify-between p-3 border border-gray-100 rounded-lg bg-[#fafafa] hover:bg-white transition-all cursor-pointer group shadow-sm transition-all hover:border-gray-300">
+                                                            <div className="flex items-center gap-2.5">
+                                                                <span className="text-gray-400 group-hover:text-blue-500 transition-colors">{item.icon}</span>
+                                                                <span className="text-[12.5px] font-bold text-gray-900">{item.label}</span>
+                                                            </div>
+                                                            <div className="flex items-center gap-2 text-gray-500">
+                                                                {item.value && <span className="text-[11.5px] font-medium bg-gray-100 px-2 py-0.5 rounded text-gray-600">{item.value}</span>}
+                                                                <ChevronRight className="w-3.5 h-3.5 opacity-50" />
+                                                            </div>
+                                                        </div>
+                                                    ))}
                                                 </div>
                                             </div>
                                             <div className="p-4 border-t border-gray-200">
