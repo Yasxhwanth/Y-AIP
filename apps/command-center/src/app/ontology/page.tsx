@@ -19,6 +19,7 @@ interface OntologyLinkType { api_name: string; display_name_a_side: string; disp
 interface OntologyActionParameter { api_name: string; display_name: string; data_type: string; object_type_ref: string | null; is_required: boolean; description: string; }
 interface OntologyActionType { api_name: string; display_name: string; description: string; status: string; hitl_level: number; writeback_target: string; parameters: OntologyActionParameter[]; targets: string[]; }
 interface OntologyInterface { api_name: string; display_name: string; description: string; properties: OntologyProperty[]; implemented_by: string[]; }
+interface OntologySchema { object_types: OntologyObjectType[]; link_types: OntologyLinkType[]; action_types: OntologyActionType[]; interfaces: OntologyInterface[]; }
 
 const API_BASE = "/api/ontology-admin";
 const TABS = ["Objects", "Links", "Actions", "Interfaces"] as const;
@@ -62,16 +63,45 @@ function EmptyState({ message }: { message: string }) {
 // ─────────────────────────────────────────────────────────────────────────────
 // Main VOM Component
 // ─────────────────────────────────────────────────────────────────────────────
+import {
+    Database,
+    Link2,
+    Zap,
+    Share2,
+    Compass,
+    FileText,
+    History,
+    ChevronDown,
+    Plus,
+    Search as SearchIcon,
+    GitBranch,
+    ExternalLink,
+    MoreVertical,
+    Clock,
+    LayoutGrid,
+    HelpCircle,
+    Settings,
+    Grid
+} from "lucide-react";
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Main VOM Component
+// ─────────────────────────────────────────────────────────────────────────────
 export default function OntologyManagerPage() {
-    const [activeTab, setActiveTab] = useState<Tab>("Objects");
-    const [schema, setSchema] = useState<{ object_types: OntologyObjectType[]; link_types: OntologyLinkType[]; action_types: OntologyActionType[]; interfaces: OntologyInterface[] } | null>(null);
+    const [view, setView] = useState<"discover" | Tab>("discover");
+    const [activeBranch, setActiveBranch] = useState("Main");
+    const [schema, setSchema] = useState<OntologySchema | null>(null);
     const [loading, setLoading] = useState(true);
     const [selectedObject, setSelectedObject] = useState<OntologyObjectType | null>(null);
     const [selectedAction, setSelectedAction] = useState<OntologyActionType | null>(null);
     const [selectedInterface, setSelectedInterface] = useState<OntologyInterface | null>(null);
 
+    // Dropdowns
+    const [showBranchSelector, setShowBranchSelector] = useState(false);
+    const [showNewDropdown, setShowNewDropdown] = useState(false);
+
     // Forms
-    const [showNewObjectForm, setShowNewObjectForm] = useState(false);
+    const [showWizard, setShowWizard] = useState(false);
     const [showNewLinkForm, setShowNewLinkForm] = useState(false);
     const [showNewActionForm, setShowNewActionForm] = useState(false);
     const [showNewInterfaceForm, setShowNewInterfaceForm] = useState(false);
@@ -87,184 +117,643 @@ export default function OntologyManagerPage() {
 
     useEffect(() => { fetchSchema(); }, [fetchSchema]);
 
-    const tabCounts: Record<Tab, number> = {
+    const resourceCounts = {
         Objects: schema?.object_types.length ?? 0,
         Links: schema?.link_types.length ?? 0,
         Actions: schema?.action_types.length ?? 0,
         Interfaces: schema?.interfaces.length ?? 0
     };
 
+    const sidebarItems = [
+        { id: "discover", label: "Discover", icon: Compass },
+        { id: "proposals", label: "Proposals", icon: FileText },
+        { id: "history", label: "History", icon: History },
+    ];
+
+    const resources = [
+        { id: "Objects", label: "Object types", icon: Database, count: resourceCounts.Objects },
+        { id: "Links", label: "Link types", icon: Link2, count: resourceCounts.Links },
+        { id: "Actions", label: "Action types", icon: Zap, count: resourceCounts.Actions, separator: true },
+        { id: "Groups", label: "Groups", icon: LayoutGrid, count: 3 },
+        { id: "Interfaces", label: "Interfaces", icon: Share2, count: resourceCounts.Interfaces },
+    ];
+
     return (
-        <div style={{ minHeight: "100vh", background: "#0a0f1a", fontFamily: "'Inter', sans-serif", color: "#e5e7eb" }}>
-            {/* Header */}
-            <div style={{ borderBottom: "1px solid #1f2937", padding: "16px 32px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-                <div>
-                    <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                        <span style={{ fontSize: 20 }}>🧬</span>
-                        <h1 style={{ fontSize: 18, fontWeight: 700, margin: 0, color: "#f9fafb" }}>Ontology Manager</h1>
-                        <Badge label="BETA" color="#f59e0b" />
+        <div style={{ height: "100vh", display: "flex", flexDirection: "column", background: "#0a0f1a", fontFamily: "'Inter', sans-serif", color: "#e5e7eb", overflow: "hidden" }}>
+
+            {/* ── HEADER ────────────────────────────────────────────────────── */}
+            <div style={{ height: 48, borderBottom: "1px solid #1f2937", display: "flex", alignItems: "center", justifyContent: "space-between", paddingLeft: 16, paddingRight: 16, background: "#111827", flexShrink: 0 }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                        <div style={{ width: 20, height: 20, background: "#3b82f6", borderRadius: 4, display: "flex", alignItems: "center", justifyContent: "center" }}>
+                            <Database size={12} color="white" />
+                        </div>
+                        <span style={{ fontSize: 13, fontWeight: 600, color: "#f9fafb" }}>Ontology Manager</span>
                     </div>
-                    <p style={{ margin: "4px 0 0", fontSize: 12, color: "#6b7280" }}>Define Object Types, Link Types, Action Types, and Interfaces</p>
+
+                    <div style={{ height: 20, width: 1, background: "#1f2937" }} />
+
+                    {/* Search bar inside header */}
+                    <div style={{ position: "relative", width: 400 }}>
+                        <SearchIcon size={14} style={{ position: "absolute", left: 10, top: 8, color: "#6b7280" }} />
+                        <input
+                            placeholder="Search resources..."
+                            style={{ background: "#0a0f1a", border: "1px solid #1f2937", borderRadius: 4, padding: "6px 12px 6px 32px", fontSize: 12, width: "100%", color: "#e5e7eb" }}
+                        />
+                    </div>
                 </div>
-                <button onClick={fetchSchema} style={{ background: "#1f2937", border: "1px solid #374151", borderRadius: 6, color: "#9ca3af", padding: "6px 14px", cursor: "pointer", fontSize: 12 }}>
-                    ↺ Refresh
-                </button>
-            </div>
 
-            {/* Tab Navigation */}
-            <div style={{ display: "flex", borderBottom: "1px solid #1f2937", padding: "0 32px" }}>
-                {TABS.map(tab => (
-                    <button key={tab} onClick={() => { setActiveTab(tab); setSelectedObject(null); setSelectedAction(null); setSelectedInterface(null); }}
-                        style={{ background: "none", border: "none", color: activeTab === tab ? "#3b82f6" : "#6b7280", fontWeight: activeTab === tab ? 700 : 400, borderBottom: activeTab === tab ? "2px solid #3b82f6" : "2px solid transparent", padding: "12px 20px", cursor: "pointer", fontSize: 13, display: "flex", alignItems: "center", gap: 6 }}>
-                        {tab}
-                        <span style={{ background: activeTab === tab ? "#1e3a5f" : "#1f2937", color: activeTab === tab ? "#60a5fa" : "#4b5563", borderRadius: 10, padding: "1px 7px", fontSize: 11 }}>{tabCounts[tab]}</span>
-                    </button>
-                ))}
-            </div>
+                <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                    {/* Branch Selector */}
+                    <div style={{ position: "relative" }}>
+                        <button
+                            onClick={() => setShowBranchSelector(!showBranchSelector)}
+                            style={{ background: "none", border: "1px solid #1f2937", borderRadius: 4, padding: "5px 12px", display: "flex", alignItems: "center", gap: 8, cursor: "pointer", color: "#9ca3af", fontSize: 12 }}
+                        >
+                            <GitBranch size={14} />
+                            <span style={{ fontWeight: 600 }}>{activeBranch}</span>
+                            <ChevronDown size={14} />
+                        </button>
+                        {showBranchSelector && (
+                            <div style={{ position: "absolute", top: "100%", right: 0, marginTop: 4, width: 200, background: "#111827", border: "1px solid #1f2937", borderRadius: 6, zIndex: 100, boxShadow: "0 10px 15px -3px rgba(0, 0, 0, 0.5)" }}>
+                                <div style={{ padding: 4 }}>
+                                    {["Main", "yashwanth/speedrun"].map(b => (
+                                        <div key={b} onClick={() => { setActiveBranch(b); setShowBranchSelector(false); }} style={{ padding: "8px 12px", cursor: "pointer", borderRadius: 4, background: b === activeBranch ? "#1e3a5f" : "transparent", fontSize: 12 }}>{b}</div>
+                                    ))}
+                                    <div style={{ height: 1, background: "#1f2937", marginTop: 4, marginBottom: 4 }} />
+                                    <div style={{ padding: "8px 12px", cursor: "pointer", color: "#3b82f6", fontSize: 12, fontWeight: 600 }}>+ Create branch</div>
+                                </div>
+                            </div>
+                        )}
+                    </div>
 
-            {/* Body */}
-            <div style={{ display: "flex", height: "calc(100vh - 117px)" }}>
-
-                {/* ── OBJECTS TAB ─────────────────────────────────────────────── */}
-                {activeTab === "Objects" && (
-                    <>
-                        {/* Left: Object Type List */}
-                        <div style={{ width: 280, borderRight: "1px solid #1f2937", padding: 20, overflowY: "auto" }}>
-                            <SectionTitle title="Object Types" count={schema?.object_types.length} />
-                            <button onClick={() => setShowNewObjectForm(true)} style={{ width: "100%", background: "#1e3a5f", border: "1px dashed #3b82f6", borderRadius: 6, color: "#60a5fa", padding: "8px 0", cursor: "pointer", fontSize: 12, marginBottom: 12 }}>
-                                + New Object Type
-                            </button>
-                            {loading ? <p style={{ color: "#6b7280", fontSize: 13 }}>Loading…</p> :
-                                schema?.object_types.length === 0 ? <EmptyState message="No Object Types defined." /> :
-                                    schema?.object_types.map(ot => (
-                                        <Card key={ot.api_name} onClick={() => setSelectedObject(ot)} selected={selectedObject?.api_name === ot.api_name}>
-                                            <div style={{ fontWeight: 600, fontSize: 13, color: "#f9fafb" }}>{ot.display_name}</div>
-                                            <div style={{ color: "#9ca3af", fontSize: 11, marginTop: 2 }}>{ot.api_name}</div>
-                                            <div style={{ marginTop: 8, display: "flex", gap: 4, flexWrap: "wrap" }}>
-                                                <Badge label={`${ot.properties?.length ?? 0} props`} color="#10b981" />
-                                                {ot.implements?.map(i => <Pill key={i} text={i} />)}
-                                            </div>
-                                        </Card>
-                                    ))
-                            }
-                        </div>
-
-                        {/* Right: Object Type Detail */}
-                        <div style={{ flex: 1, padding: 24, overflowY: "auto" }}>
-                            {showNewObjectForm ? (
-                                <NewObjectTypeForm onSuccess={() => { setShowNewObjectForm(false); fetchSchema(); }} onCancel={() => setShowNewObjectForm(false)} />
-                            ) : selectedObject ? (
-                                <ObjectTypeDetail ot={selectedObject} onRefresh={() => { fetchSchema(); setSelectedObject(null); }} />
-                            ) : (
-                                <EmptyState message="← Select an Object Type to view its definition, or create a new one." />
-                            )}
-                        </div>
-                    </>
-                )}
-
-                {/* ── LINKS TAB ───────────────────────────────────────────────── */}
-                {activeTab === "Links" && (
-                    <div style={{ flex: 1, padding: 24, overflowY: "auto" }}>
-                        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 20 }}>
-                            <SectionTitle title="Link Types" count={schema?.link_types.length} />
-                            <button onClick={() => setShowNewLinkForm(!showNewLinkForm)} style={{ background: "#1e3a5f", border: "1px solid #3b82f6", borderRadius: 6, color: "#60a5fa", padding: "7px 14px", cursor: "pointer", fontSize: 12 }}>
-                                + New Link Type
-                            </button>
-                        </div>
-                        {showNewLinkForm && <NewLinkTypeForm objectTypes={schema?.object_types ?? []} onSuccess={() => { setShowNewLinkForm(false); fetchSchema(); }} onCancel={() => setShowNewLinkForm(false)} />}
-                        {loading ? <p style={{ color: "#6b7280" }}>Loading…</p> :
-                            schema?.link_types.length === 0 ? <EmptyState message="No Link Types defined. Create a relationship between two Object Types." /> :
-                                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(380px, 1fr))", gap: 12 }}>
-                                    {schema?.link_types.map(lt => (
-                                        <div key={lt.api_name} style={{ background: "#111827", border: "1px solid #1f2937", borderRadius: 10, padding: 20 }}>
-                                            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
-                                                <span style={{ fontWeight: 700, fontSize: 13, color: "#f9fafb" }}>{lt.api_name}</span>
-                                                <Badge label={CARDINALITY_LABELS[lt.cardinality] ?? lt.cardinality} color="#a78bfa" />
-                                            </div>
-                                            <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13 }}>
-                                                <span style={{ background: "#1e3a5f", color: "#60a5fa", borderRadius: 4, padding: "3px 10px" }}>{lt.source_display}</span>
-                                                <div style={{ textAlign: "center", flex: 1 }}>
-                                                    <div style={{ color: "#10b981", fontSize: 11 }}>→ {lt.display_name_a_side}</div>
-                                                    <div style={{ background: "#1f2937", height: 1, margin: "3px 0" }} />
-                                                    <div style={{ color: "#f59e0b", fontSize: 11 }}>{lt.display_name_b_side} ←</div>
-                                                </div>
-                                                <span style={{ background: "#1e3a5f", color: "#60a5fa", borderRadius: 4, padding: "3px 10px" }}>{lt.target_display}</span>
+                    {/* New Button */}
+                    <div style={{ position: "relative" }}>
+                        <button
+                            onClick={() => setShowNewDropdown(!showNewDropdown)}
+                            style={{ background: "#3b82f6", border: "none", borderRadius: 4, padding: "6px 16px", display: "flex", alignItems: "center", gap: 8, cursor: "pointer", color: "white", fontSize: 12, fontWeight: 600 }}
+                        >
+                            New <ChevronDown size={14} />
+                        </button>
+                        {showNewDropdown && (
+                            <div style={{ position: "absolute", top: "100%", right: 0, marginTop: 4, width: 240, background: "#111827", border: "1px solid #1f2937", borderRadius: 6, zIndex: 100, boxShadow: "0 10px 15px -3px rgba(0, 0, 0, 0.5)" }}>
+                                <div style={{ padding: 4 }}>
+                                    {[
+                                        { label: "Object type", desc: "Map datasets and models to object types", icon: Database, action: () => setShowWizard(true) },
+                                        { label: "Link type", desc: "Create relationships between object types", icon: Link2, action: () => { setView("Links"); setShowNewLinkForm(true); } },
+                                        { label: "Action type", desc: "Allow users to writeback to their ontology", icon: Zap, action: () => { setView("Actions"); setShowNewActionForm(true); } },
+                                        { label: "Shared property", desc: "Create properties that can be shared across...", icon: Settings },
+                                        { label: "Interface", desc: "Use interfaces to build against abstract types", icon: Share2, action: () => { setView("Interfaces"); setShowNewInterfaceForm(true); } }
+                                    ].map((item, idx) => (
+                                        <div
+                                            key={idx}
+                                            onClick={() => { item.action?.(); setShowNewDropdown(false); }}
+                                            style={{ padding: "10px 12px", cursor: "pointer", borderRadius: 4, display: "flex", gap: 12 }}
+                                        >
+                                            <div style={{ width: 16, height: 16, marginTop: 2 }}><item.icon size={16} color="#9ca3af" /></div>
+                                            <div>
+                                                <div style={{ fontSize: 12, fontWeight: 600, color: "#f9fafb" }}>{item.label}</div>
+                                                <div style={{ fontSize: 10, color: "#6b7280" }}>{item.desc}</div>
                                             </div>
                                         </div>
                                     ))}
                                 </div>
+                            </div>
+                        )}
+                    </div>
+                </div>
+            </div>
+
+            <div style={{ display: "flex", flex: 1, overflow: "hidden" }}>
+
+                {/* ── SIDEBAR ────────────────────────────────────────────────────── */}
+                <div style={{ width: 220, borderRight: "1px solid #1f2937", background: "#0a0f1a", padding: "16px 8px", display: "flex", flexDirection: "column", gap: 2, flexShrink: 0 }}>
+                    <div style={{ marginBottom: 16, paddingLeft: 8, paddingRight: 8 }}>
+                        <div style={{ fontSize: 11, fontWeight: 700, color: "#4b5563", textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 8 }}>Ontologize Public Ontology</div>
+                        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", color: "#9ca3af", fontSize: 12, background: "#111827", padding: "6px 8px", borderRadius: 4, cursor: "pointer" }}>
+                            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                                <Database size={14} />
+                                <span>Ontologize Public</span>
+                            </div>
+                            <ChevronDown size={14} />
+                        </div>
+                    </div>
+
+                    {sidebarItems.map(item => (
+                        <SidebarItem
+                            key={item.id}
+                            active={view === item.id}
+                            onClick={() => setView(item.id as any)}
+                            icon={item.icon}
+                            label={item.label}
+                        />
+                    ))}
+
+                    <div style={{ height: 1, background: "#1f2937", margin: "12px 8px" }} />
+
+                    {!loading && resources.map(item => (
+                        <div key={item.id}>
+                            <SidebarItem
+                                active={view === item.id}
+                                onClick={() => setView(item.id as Tab)}
+                                icon={item.icon}
+                                label={item.label}
+                                count={item.count}
+                            />
+                            {item.separator && <div style={{ height: 1, background: "#1f2937", margin: "12px 8px" }} />}
+                        </div>
+                    ))}
+
+                    <div style={{ marginTop: "auto", paddingLeft: 8, paddingRight: 8, display: "flex", flexDirection: "column", gap: 4 }}>
+                        <SidebarItem icon={HelpCircle} label="Health issues" />
+                        <SidebarItem icon={Plus} label="Cleanup" />
+                        <SidebarItem icon={Settings} label="Ontology configuration" />
+                    </div>
+                </div>
+
+                {/* ── MAIN VIEWPORT ─────────────────────────────────────────────── */}
+                <div style={{ flex: 1, overflowY: "auto", background: "#0d1117" }}>
+                    {view === "discover" ? (
+                        <DiscoveryView schema={schema} onObjectClick={(ot: OntologyObjectType) => { setView("Objects"); setSelectedObject(ot); }} />
+                    ) : (
+                        <TabView
+                            activeTab={view as Tab}
+                            schema={schema}
+                            loading={loading}
+                            selectedObject={selectedObject}
+                            setSelectedObject={setSelectedObject}
+                            selectedAction={selectedAction}
+                            setSelectedAction={setSelectedAction}
+                            selectedInterface={selectedInterface}
+                            setSelectedInterface={setSelectedInterface}
+                            showWizard={showWizard}
+                            setShowWizard={setShowWizard}
+                            showNewLinkForm={showNewLinkForm}
+                            setShowNewLinkForm={setShowNewLinkForm}
+                            showNewActionForm={showNewActionForm}
+                            setShowNewActionForm={setShowNewActionForm}
+                            showNewInterfaceForm={showNewInterfaceForm}
+                            setShowNewInterfaceForm={setShowNewInterfaceForm}
+                            fetchSchema={fetchSchema}
+                        />
+                    )}
+                </div>
+            </div>
+        </div>
+    );
+}
+
+function SidebarItem({ active, onClick, icon: Icon, label, count }: { active?: boolean; onClick?: () => void; icon: any; label: string; count?: number }) {
+    return (
+        <div
+            onClick={onClick}
+            style={{
+                padding: "8px 12px",
+                borderRadius: 4,
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+                cursor: "pointer",
+                background: active ? "#1e3a5f" : "transparent",
+                color: active ? "#60a5fa" : "#9ca3af",
+                transition: "all 0.2s"
+            }}
+        >
+            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                <Icon size={16} />
+                <span style={{ fontSize: 13, fontWeight: active ? 600 : 400 }}>{label}</span>
+            </div>
+            {count !== undefined && <span style={{ fontSize: 11, color: "#4b5563" }}>{count}</span>}
+        </div>
+    );
+}
+
+function DiscoveryView({ schema, onObjectClick }: { schema: OntologySchema | null; onObjectClick: (ot: OntologyObjectType) => void }) {
+    const recentlyViewed = schema?.object_types.slice(0, 6) ?? [];
+
+    return (
+        <div style={{ padding: 40 }}>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 24 }}>
+                <h2 style={{ fontSize: 14, fontWeight: 700, color: "#f9fafb" }}>Recently viewed object types <Badge label={String(schema?.object_types.length ?? 0)} color="#6b7280" /></h2>
+                <div style={{ display: "flex", gap: 12 }}>
+                    <button style={{ background: "none", border: "1px solid #1f2937", borderRadius: 4, padding: "4px 12px", color: "#9ca3af", fontSize: 12, display: "flex", alignItems: "center", gap: 8 }}>
+                        <Grid size={14} /> Configure
+                    </button>
+                    <button style={{ background: "none", border: "none", color: "#3b82f6", fontSize: 12, fontWeight: 600, display: "flex", alignItems: "center", gap: 4 }}>
+                        See all <ChevronDown size={14} style={{ transform: "rotate(-90deg)" }} />
+                    </button>
+                </div>
+            </div>
+
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(320px, 1fr))", gap: 20 }}>
+                {recentlyViewed.map((ot: OntologyObjectType) => (
+                    <div
+                        key={ot.api_name}
+                        onClick={() => onObjectClick(ot)}
+                        style={{ background: "#111827", border: "1px solid #1f2937", borderRadius: 8, padding: 20, cursor: "pointer" }}
+                    >
+                        <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 12 }}>
+                            <div style={{ width: 32, height: 32, background: "#1e293b", borderRadius: 6, display: "flex", alignItems: "center", justifyContent: "center" }}>
+                                <Database size={16} color="#3b82f6" />
+                            </div>
+                            <div>
+                                <div style={{ fontSize: 13, fontWeight: 600, color: "#f9fafb" }}>{ot.display_name}</div>
+                                <div style={{ fontSize: 11, color: "#6b7280" }}>{ot.properties?.length ?? 0} objects</div>
+                            </div>
+                            <div style={{ marginLeft: "auto" }}><MoreVertical size={14} color="#4b5563" /></div>
+                        </div>
+                        <div style={{ fontSize: 12, color: "#9ca3af", marginBottom: 16 }}>{ot.description || "No description"}</div>
+                        <div style={{ fontSize: 11, color: "#4b5563" }}>3 dependents</div>
+                    </div>
+                ))}
+            </div>
+        </div>
+    );
+}
+
+function TabView(props: {
+    activeTab: Tab;
+    schema: OntologySchema | null;
+    loading: boolean;
+    selectedObject: OntologyObjectType | null;
+    setSelectedObject: (ot: OntologyObjectType | null) => void;
+    selectedAction: OntologyActionType | null;
+    setSelectedAction: (at: OntologyActionType | null) => void;
+    selectedInterface: OntologyInterface | null;
+    setSelectedInterface: (i: OntologyInterface | null) => void;
+    showWizard: boolean;
+    setShowWizard: (v: boolean) => void;
+    showNewLinkForm: boolean;
+    setShowNewLinkForm: (v: boolean) => void;
+    showNewActionForm: boolean;
+    setShowNewActionForm: (v: boolean) => void;
+    showNewInterfaceForm: boolean;
+    setShowNewInterfaceForm: (v: boolean) => void;
+    fetchSchema: () => void;
+}) {
+    const { activeTab, schema, loading, selectedObject, setSelectedObject, fetchSchema, selectedAction, setSelectedAction, selectedInterface, setSelectedInterface, showNewLinkForm, setShowNewLinkForm, showNewActionForm, setShowNewActionForm, showNewInterfaceForm, setShowNewInterfaceForm } = props;
+
+    return (
+        <div style={{ display: "flex", height: "100%" }}>
+            {activeTab === "Objects" && (
+                <>
+                    <div style={{ width: 280, borderRight: "1px solid #1f2937", padding: 20, overflowY: "auto", flexShrink: 0 }}>
+                        <SectionTitle title="Object Types" count={schema?.object_types.length} />
+                        <button onClick={() => props.setShowWizard(true)} style={{ width: "100%", background: "#1e3a5f", border: "1px dashed #3b82f6", borderRadius: 6, color: "#60a5fa", padding: "8px 0", cursor: "pointer", fontSize: 12, marginBottom: 12 }}>
+                            + New Object Type
+                        </button>
+                        {loading ? <p style={{ color: "#6b7280", fontSize: 13 }}>Loading…</p> :
+                            schema?.object_types.map((ot: OntologyObjectType) => (
+                                <Card key={ot.api_name} onClick={() => setSelectedObject(ot)} selected={selectedObject?.api_name === ot.api_name}>
+                                    <div style={{ fontWeight: 600, fontSize: 13, color: "#f9fafb" }}>{ot.display_name}</div>
+                                    <div style={{ color: "#9ca3af", fontSize: 11, marginTop: 2 }}>{ot.api_name}</div>
+                                </Card>
+                            ))
                         }
+                    </div>
+                    <div style={{ flex: 1, padding: 24, overflowY: "auto" }}>
+                        {props.showWizard ? (
+                            <NewObjectTypeWizard onSuccess={() => { props.setShowWizard(false); fetchSchema(); }} onCancel={() => props.setShowWizard(false)} />
+                        ) : selectedObject ? (
+                            <ObjectTypeDetail ot={selectedObject} onRefresh={() => { fetchSchema(); setSelectedObject(null); }} />
+                        ) : (
+                            <EmptyState message="← Select an Object Type to view its definition, or create a new one." />
+                        )}
+                    </div>
+                </>
+            )}
+
+            {activeTab === "Links" && (
+                <div style={{ flex: 1, padding: 24, overflowY: "auto" }}>
+                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 20 }}>
+                        <SectionTitle title="Link Types" count={schema?.link_types.length} />
+                        <button onClick={() => setShowNewLinkForm(!showNewLinkForm)} style={{ background: "#1e3a5f", border: "1px solid #3b82f6", borderRadius: 6, color: "#60a5fa", padding: "7px 14px", cursor: "pointer", fontSize: 12 }}>
+                            + New Link Type
+                        </button>
+                    </div>
+                    {showNewLinkForm && <NewLinkTypeForm objectTypes={schema?.object_types ?? []} onSuccess={() => { setShowNewLinkForm(false); fetchSchema(); }} onCancel={() => setShowNewLinkForm(false)} />}
+                    {loading ? <p style={{ color: "#6b7280" }}>Loading…</p> :
+                        schema?.link_types.length === 0 ? <EmptyState message="No Link Types defined. Create a relationship between two Object Types." /> :
+                            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(380px, 1fr))", gap: 12 }}>
+                                {schema?.link_types.map((lt: OntologyLinkType) => (
+                                    <div key={lt.api_name} style={{ background: "#111827", border: "1px solid #1f2937", borderRadius: 10, padding: 20 }}>
+                                        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
+                                            <span style={{ fontWeight: 700, fontSize: 13, color: "#f9fafb" }}>{lt.api_name}</span>
+                                            <Badge label={CARDINALITY_LABELS[lt.cardinality] ?? lt.cardinality} color="#a78bfa" />
+                                        </div>
+                                        <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13 }}>
+                                            <span style={{ background: "#1e3a5f", color: "#60a5fa", borderRadius: 4, padding: "3px 10px" }}>{lt.source_display}</span>
+                                            <div style={{ textAlign: "center", flex: 1 }}>
+                                                <div style={{ color: "#10b981", fontSize: 11 }}>→ {lt.display_name_a_side}</div>
+                                                <div style={{ background: "#1f2937", height: 1, margin: "3px 0" }} />
+                                                <div style={{ color: "#f59e0b", fontSize: 11 }}>{lt.display_name_b_side} ←</div>
+                                            </div>
+                                            <span style={{ background: "#1e3a5f", color: "#60a5fa", borderRadius: 4, padding: "3px 10px" }}>{lt.target_display}</span>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                    }
+                </div>
+            )}
+
+            {activeTab === "Actions" && (
+                <>
+                    <div style={{ width: 300, borderRight: "1px solid #1f2937", padding: 20, overflowY: "auto" }}>
+                        <SectionTitle title="Action Types" count={schema?.action_types.length} />
+                        <button onClick={() => setShowNewActionForm(true)} style={{ width: "100%", background: "#1e3a5f", border: "1px dashed #3b82f6", borderRadius: 6, color: "#60a5fa", padding: "8px 0", cursor: "pointer", fontSize: 12, marginBottom: 12 }}>
+                            + New Action Type
+                        </button>
+                        {loading ? <p style={{ color: "#6b7280", fontSize: 13 }}>Loading…</p> :
+                            schema?.action_types.map((at: OntologyActionType) => (
+                                <Card key={at.api_name} onClick={() => { setSelectedAction(at); setShowNewActionForm(false); }} selected={selectedAction?.api_name === at.api_name}>
+                                    <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                                        <StatusDot active={at.status === "ACTIVE"} />
+                                        <span style={{ fontWeight: 600, fontSize: 13, color: "#f9fafb" }}>{at.display_name}</span>
+                                    </div>
+                                    <div style={{ color: "#9ca3af", fontSize: 11, marginTop: 2 }}>{at.api_name}</div>
+                                </Card>
+                            ))
+                        }
+                    </div>
+                    <div style={{ flex: 1, padding: 24, overflowY: "auto" }}>
+                        {showNewActionForm ? (
+                            <NewActionTypeForm objectTypes={schema?.object_types ?? []} onSuccess={() => { setShowNewActionForm(false); fetchSchema(); }} onCancel={() => setShowNewActionForm(false)} />
+                        ) : selectedAction ? (
+                            <ActionTypeDetail action={selectedAction} />
+                        ) : (
+                            <EmptyState message="← Select an Action Type to view its definition, parameters, and HITL configuration." />
+                        )}
+                    </div>
+                </>
+            )}
+
+            {activeTab === "Interfaces" && (
+                <>
+                    <div style={{ width: 280, borderRight: "1px solid #1f2937", padding: 20, overflowY: "auto" }}>
+                        <SectionTitle title="Interfaces" count={schema?.interfaces.length} />
+                        <button onClick={() => setShowNewInterfaceForm(true)} style={{ width: "100%", background: "#1e3a5f", border: "1px dashed #3b82f6", borderRadius: 6, color: "#60a5fa", padding: "8px 0", cursor: "pointer", fontSize: 12, marginBottom: 12 }}>
+                            + New Interface
+                        </button>
+                        {loading ? <p style={{ color: "#6b7280", fontSize: 13 }}>Loading…</p> :
+                            schema?.interfaces.map((i: OntologyInterface) => (
+                                <Card key={i.api_name} onClick={() => { setSelectedInterface(i); setShowNewInterfaceForm(false); }} selected={selectedInterface?.api_name === i.api_name}>
+                                    <div style={{ fontWeight: 600, fontSize: 13, color: "#f9fafb" }}>{i.display_name}</div>
+                                    <div style={{ color: "#9ca3af", fontSize: 11, marginTop: 2 }}>interface {i.api_name}</div>
+                                </Card>
+                            ))
+                        }
+                    </div>
+                    <div style={{ flex: 1, padding: 24, overflowY: "auto" }}>
+                        {showNewInterfaceForm ? (
+                            <NewInterfaceForm onSuccess={() => { setShowNewInterfaceForm(false); fetchSchema(); }} onCancel={() => setShowNewInterfaceForm(false)} />
+                        ) : selectedInterface ? (
+                            <InterfaceDetail iface={selectedInterface} />
+                        ) : (
+                            <EmptyState message="← Select an Interface to view the shared property contract it enforces." />
+                        )}
+                    </div>
+                </>
+            )}
+        </div>
+    );
+}
+
+function NewObjectTypeWizard({ onSuccess, onCancel }: { onSuccess: () => void; onCancel: () => void }) {
+    const [step, setStep] = useState(1);
+    const [formData, setFormData] = useState({
+        datasourceType: "existing",
+        datasetId: "",
+        apiName: "",
+        displayName: "",
+        pluralName: "",
+        primaryKey: "",
+        titleProperty: "",
+        properties: [] as any[]
+    });
+    const [availableDatasets, setAvailableDatasets] = useState<any[]>([]);
+    const [loadingDatasets, setLoadingDatasets] = useState(false);
+    const [loadingColumns, setLoadingColumns] = useState(false);
+    const [saving, setSaving] = useState(false);
+
+    useEffect(() => {
+        if (step === 1) {
+            setLoadingDatasets(true);
+            // Simulated fetch of available datasets
+            setTimeout(() => {
+                setAvailableDatasets([
+                    { id: "all_orders", name: "all_orders", path: "/Ontologize Public/all_orders", columns: ["Order Id", "Customer Id", "Item Name", "Quantity", "Order Date", "Status"] },
+                    { id: "consolidated_customers", name: "consolidated_customers", path: "/Ontologize Public/consolidated_customers", columns: ["Customer Id", "Name", "Email", "Region"] },
+                    { id: "orders_office_goods", name: "orders_office_goods", path: "/Ontologize Public/orders_office_goods", columns: ["Order Id", "Item", "Price", "Category"] }
+                ]);
+                setLoadingDatasets(false);
+            }, 600);
+        }
+    }, [step]);
+
+    const handleDatasetSelect = (id: string) => {
+        const ds = availableDatasets.find(d => d.id === id);
+        if (!ds) return;
+
+        setLoadingColumns(true);
+        setTimeout(() => {
+            setFormData({
+                ...formData,
+                datasetId: id,
+                displayName: ds.name.replace(/_/g, ' ').replace(/\b\w/g, (l: any) => l.toUpperCase()),
+                apiName: ds.name,
+                pluralName: ds.name.endsWith('s') ? ds.name : ds.name + 's',
+                properties: ds.columns.map((col: string) => ({
+                    api_name: col.toLowerCase().replace(/ /g, '_'),
+                    display_name: col,
+                    data_type: col.includes("Date") ? "date" : col.includes("Quantity") || col.includes("Price") ? "double" : "string"
+                }))
+            });
+            setLoadingColumns(false);
+        }, 400);
+    };
+
+    const handleNext = () => setStep(s => s + 1);
+    const handleBack = () => setStep(s => s - 1);
+
+    const handleSubmit = async () => {
+        setSaving(true);
+        try {
+            const res = await fetch(`${API_BASE}/object-types`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    api_name: formData.apiName,
+                    display_name: formData.displayName,
+                    plural_display_name: formData.pluralName,
+                    description: `Object type backed by ${formData.datasetId}`,
+                    primary_key: formData.primaryKey || "order_id",
+                    title_property: formData.titleProperty || "item_name",
+                    backing_source: formData.datasetId,
+                    properties: formData.properties.map(p => ({
+                        ...p,
+                        is_primary_key: p.display_name === formData.primaryKey,
+                        is_required: p.display_name === formData.primaryKey
+                    }))
+                })
+            });
+            if (res.ok) {
+                // Show floating indexing notification
+                const notify = document.createElement("div");
+                notify.style.cssText = "position: fixed; bottom: 20px; right: 20px; background: #1e3a8a; border: 1px solid #3b82f6; color: white; padding: 12px 20px; border-radius: 8px; z-index: 1000; box-shadow: 0 10px 25px rgba(0,0,0,0.5); display: flex; align-items: center; gap: 12px;";
+                notify.innerHTML = `<div style="width: 16px; height: 16px; border: 2px solid #60a5fa; border-top-color: transparent; border-radius: 50%; animation: spin 0.8s linear infinite;"></div><div><strong>Indexing started</strong><div style="font-size: 11px; opacity: 0.8;">${formData.displayName} object type is being active...</div></div>`;
+                document.body.appendChild(notify);
+
+                // Add keyframes for spin
+                const style = document.createElement("style");
+                style.innerHTML = "@keyframes spin { to { transform: rotate(360deg); } }";
+                document.head.appendChild(style);
+
+                setTimeout(() => {
+                    notify.style.background = "#065f46";
+                    notify.style.borderColor = "#10b981";
+                    notify.innerHTML = `<div style="color: #10b981; font-weight: bold;">✓</div><div><strong>Indexing complete</strong><div style="font-size: 11px; opacity: 0.8;">${formData.displayName} is now Active.</div></div>`;
+                    setTimeout(() => notify.remove(), 4000);
+                }, 5000);
+
+                onSuccess();
+            }
+            else alert("Failed to save object type");
+        } catch (e) { console.error(e); }
+        setSaving(false);
+    };
+
+    return (
+        <div style={{ background: "#111827", border: "1px solid #1f2937", borderRadius: 8, display: "flex", flexDirection: "column", height: "100%", maxWidth: 900, margin: "0 auto" }}>
+            {/* Wizard Header */}
+            <div style={{ padding: "20px 32px", borderBottom: "1px solid #1f2937", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                <div>
+                    <h2 style={{ margin: 0, fontSize: 18, color: "#f9fafb" }}>Create a new object type</h2>
+                    <div style={{ display: "flex", gap: 24, marginTop: 12 }}>
+                        {["Datasource", "Metadata", "Properties", "Actions"].map((s, i) => (
+                            <div key={s} style={{ display: "flex", alignItems: "center", gap: 8, opacity: step === i + 1 ? 1 : 0.4 }}>
+                                <div style={{ width: 20, height: 20, borderRadius: "50%", background: step >= i + 1 ? "#3b82f6" : "#1f2937", color: "white", fontSize: 11, display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 600 }}>{i + 1}</div>
+                                <span style={{ fontSize: 12, fontWeight: step === i + 1 ? 600 : 400 }}>{s}</span>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+                <button onClick={onCancel} style={{ background: "none", border: "none", color: "#9ca3af", cursor: "pointer" }}>✕</button>
+            </div>
+
+            {/* Wizard Content */}
+            <div style={{ flex: 1, padding: 32, overflowY: "auto" }}>
+                {step === 1 && (
+                    <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
+                        <div>
+                            <h3 style={{ fontSize: 16, margin: "0 0 8px" }}>Object type backing</h3>
+                            <div style={{ display: "flex", gap: 16 }}>
+                                <div
+                                    onClick={() => setFormData({ ...formData, datasourceType: "existing" })}
+                                    style={{ flex: 1, padding: 20, border: `2px solid ${formData.datasourceType === "existing" ? "#3b82f6" : "#1f2937"}`, borderRadius: 8, cursor: "pointer", background: formData.datasourceType === "existing" ? "#1e3a5f22" : "transparent" }}
+                                >
+                                    <div style={{ fontWeight: 600, fontSize: 14, marginBottom: 4 }}>Use existing datasource</div>
+                                    <div style={{ fontSize: 12, color: "#6b7280" }}>Select a preexisting Foundry dataset</div>
+                                </div>
+                                <div
+                                    style={{ flex: 1, padding: 20, border: "2px solid #1f2937", borderRadius: 8, opacity: 0.4, cursor: "not-allowed" }}
+                                >
+                                    <div style={{ fontWeight: 600, fontSize: 14, marginBottom: 4 }}>Continue without datasource</div>
+                                    <div style={{ fontSize: 12, color: "#6b7280" }}>Generate a dataset for permissions purposes</div>
+                                </div>
+                            </div>
+                        </div>
+
+                        {formData.datasourceType === "existing" && (
+                            <div>
+                                <label style={labelStyle()}>Select datasource</label>
+                                <div style={{ position: "relative" }}>
+                                    <SearchIcon size={14} style={{ position: "absolute", left: 10, top: 12, color: "#6b7280" }} />
+                                    <select
+                                        style={{ ...inputStyle(), paddingLeft: 32, height: 40 }}
+                                        value={formData.datasetId}
+                                        onChange={(e) => handleDatasetSelect(e.target.value)}
+                                    >
+                                        <option value="">Search resources...</option>
+                                        {availableDatasets.map(ds => (
+                                            <option key={ds.id} value={ds.id}>{ds.path}</option>
+                                        ))}
+                                    </select>
+                                </div>
+                                {(loadingDatasets || loadingColumns) && <p style={{ fontSize: 11, color: "#3b82f6", marginTop: 4 }}>{loadingDatasets ? "Fetching datasets..." : "Loading schema..."}</p>}
+                            </div>
+                        )}
                     </div>
                 )}
 
-                {/* ── ACTIONS TAB ─────────────────────────────────────────────── */}
-                {activeTab === "Actions" && (
-                    <>
-                        <div style={{ width: 300, borderRight: "1px solid #1f2937", padding: 20, overflowY: "auto" }}>
-                            <SectionTitle title="Action Types" count={schema?.action_types.length} />
-                            <button onClick={() => setShowNewActionForm(true)} style={{ width: "100%", background: "#1e3a5f", border: "1px dashed #3b82f6", borderRadius: 6, color: "#60a5fa", padding: "8px 0", cursor: "pointer", fontSize: 12, marginBottom: 12 }}>
-                                + New Action Type
-                            </button>
-                            {loading ? <p style={{ color: "#6b7280", fontSize: 13 }}>Loading…</p> :
-                                schema?.action_types.map(at => (
-                                    <Card key={at.api_name} onClick={() => { setSelectedAction(at); setShowNewActionForm(false); }} selected={selectedAction?.api_name === at.api_name}>
-                                        <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                                            <StatusDot active={at.status === "ACTIVE"} />
-                                            <span style={{ fontWeight: 600, fontSize: 13, color: "#f9fafb" }}>{at.display_name}</span>
-                                        </div>
-                                        <div style={{ color: "#9ca3af", fontSize: 11, marginTop: 2 }}>{at.api_name}</div>
-                                        <div style={{ marginTop: 8, display: "flex", gap: 4 }}>
-                                            <Badge label={`HITL ${at.hitl_level}`} color={at.hitl_level === 1 ? "#10b981" : at.hitl_level === 2 ? "#f59e0b" : "#ef4444"} />
-                                            <Badge label={`${at.parameters?.length ?? 0} params`} color="#6366f1" />
-                                        </div>
-                                    </Card>
-                                ))
-                            }
+                {step === 2 && (
+                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 20 }}>
+                        <div style={{ gridColumn: "1/-1" }}>
+                            <label style={labelStyle()}>Display Name</label>
+                            <input style={inputStyle()} value={formData.displayName} onChange={e => setFormData({ ...formData, displayName: e.target.value })} placeholder="e.g. Order" />
                         </div>
-
-                        <div style={{ flex: 1, padding: 24, overflowY: "auto" }}>
-                            {showNewActionForm ? (
-                                <NewActionTypeForm objectTypes={schema?.object_types ?? []} onSuccess={() => { setShowNewActionForm(false); fetchSchema(); }} onCancel={() => setShowNewActionForm(false)} />
-                            ) : selectedAction ? (
-                                <ActionTypeDetail action={selectedAction} />
-                            ) : (
-                                <EmptyState message="← Select an Action Type to view its definition, parameters, and HITL configuration." />
-                            )}
+                        <div>
+                            <label style={labelStyle()}>Plural Name</label>
+                            <input style={inputStyle()} value={formData.pluralName} onChange={e => setFormData({ ...formData, pluralName: e.target.value })} placeholder="e.g. Orders" />
                         </div>
-                    </>
+                        <div>
+                            <label style={labelStyle()}>API Name</label>
+                            <input style={inputStyle()} value={formData.apiName} onChange={e => setFormData({ ...formData, apiName: e.target.value })} placeholder="e.g. order" />
+                        </div>
+                    </div>
                 )}
 
-                {/* ── INTERFACES TAB ──────────────────────────────────────────── */}
-                {activeTab === "Interfaces" && (
-                    <>
-                        <div style={{ width: 280, borderRight: "1px solid #1f2937", padding: 20, overflowY: "auto" }}>
-                            <SectionTitle title="Interfaces" count={schema?.interfaces.length} />
-                            <button onClick={() => setShowNewInterfaceForm(true)} style={{ width: "100%", background: "#1e3a5f", border: "1px dashed #3b82f6", borderRadius: 6, color: "#60a5fa", padding: "8px 0", cursor: "pointer", fontSize: 12, marginBottom: 12 }}>
-                                + New Interface
-                            </button>
-                            {loading ? <p style={{ color: "#6b7280", fontSize: 13 }}>Loading…</p> :
-                                schema?.interfaces.map(i => (
-                                    <Card key={i.api_name} onClick={() => { setSelectedInterface(i); setShowNewInterfaceForm(false); }} selected={selectedInterface?.api_name === i.api_name}>
-                                        <div style={{ fontWeight: 600, fontSize: 13, color: "#f9fafb" }}>{i.display_name}</div>
-                                        <div style={{ color: "#9ca3af", fontSize: 11, marginTop: 2 }}>interface {i.api_name}</div>
-                                        <div style={{ marginTop: 8, display: "flex", gap: 4, flexWrap: "wrap" }}>
-                                            <Badge label={`${i.properties?.length ?? 0} props`} color="#10b981" />
-                                            <Badge label={`${i.implemented_by?.length ?? 0} implementations`} color="#a78bfa" />
-                                        </div>
-                                    </Card>
-                                ))
-                            }
+                {step === 3 && (
+                    <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
+                        <div>
+                            <label style={labelStyle()}>Primary Key</label>
+                            <select style={inputStyle()} value={formData.primaryKey} onChange={e => setFormData({ ...formData, primaryKey: e.target.value })}>
+                                <option value="">Select primary key...</option>
+                                {formData.properties.map(p => (
+                                    <option key={p.api_name} value={p.display_name}>{p.display_name}</option>
+                                ))}
+                            </select>
+                            <p style={{ fontSize: 11, color: "#6b7280", marginTop: 4 }}>Select the property that serves as each Object's unique identifier.</p>
                         </div>
-                        <div style={{ flex: 1, padding: 24, overflowY: "auto" }}>
-                            {showNewInterfaceForm ? (
-                                <NewInterfaceForm onSuccess={() => { setShowNewInterfaceForm(false); fetchSchema(); }} onCancel={() => setShowNewInterfaceForm(false)} />
-                            ) : selectedInterface ? (
-                                <InterfaceDetail iface={selectedInterface} />
-                            ) : (
-                                <EmptyState message="← Select an Interface to view the shared property contract it enforces." />
-                            )}
+                        <div>
+                            <label style={labelStyle()}>Title Property</label>
+                            <select style={inputStyle()} value={formData.titleProperty} onChange={e => setFormData({ ...formData, titleProperty: e.target.value })}>
+                                <option value="">Select title property...</option>
+                                {formData.properties.map(p => (
+                                    <option key={p.api_name} value={p.display_name}>{p.display_name}</option>
+                                ))}
+                            </select>
+                            <p style={{ fontSize: 11, color: "#6b7280", marginTop: 4 }}>This property will serve as the name of the Object displayed across the platform.</p>
                         </div>
-                    </>
+                    </div>
+                )}
+
+                {step === 4 && (
+                    <div style={{ textAlign: "center", paddingTop: 40, paddingBottom: 40 }}>
+                        <div style={{ width: 64, height: 64, background: "#052e16", borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 20px" }}>
+                            <Zap size={32} color="#10b981" />
+                        </div>
+                        <h3 style={{ fontSize: 18, marginBottom: 12 }}>Ready to create Object Type</h3>
+                        <p style={{ color: "#9ca3af", fontSize: 14 }}>Once created, the object type will be saved to the Ontology and indexing will begin automatically.</p>
+                    </div>
+                )}
+            </div>
+
+            {/* Wizard Footer */}
+            <div style={{ padding: "20px 32px", borderTop: "1px solid #1f2937", display: "flex", justifyContent: "flex-end", gap: 12, background: "#111827", borderRadius: "0 0 8px 8px" }}>
+                {step > 1 && <button onClick={handleBack} style={{ background: "none", border: "1px solid #374151", color: "#e5e7eb", borderRadius: 4, padding: "8px 20px", cursor: "pointer", fontSize: 13 }}>Back</button>}
+                {step < 4 ? (
+                    <button
+                        onClick={handleNext}
+                        disabled={step === 1 && !formData.datasetId}
+                        style={{ background: "#3b82f6", border: "none", color: "white", borderRadius: 4, padding: "8px 24px", cursor: "pointer", fontSize: 13, fontWeight: 600, opacity: (step === 1 && !formData.datasetId) ? 0.5 : 1 }}
+                    >
+                        Next
+                    </button>
+                ) : (
+                    <button onClick={handleSubmit} disabled={saving} style={{ background: "#10b981", border: "none", color: "white", borderRadius: 4, padding: "8px 24px", cursor: "pointer", fontSize: 13, fontWeight: 600 }}>
+                        {saving ? "Creating..." : "Create"}
+                    </button>
                 )}
             </div>
         </div>
