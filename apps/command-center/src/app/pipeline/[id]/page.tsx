@@ -921,6 +921,8 @@ export default function PipelineBuilderWorkspace() {
     // Preview resizer
     const [previewHeight, setPreviewHeight] = useState(250);
     const [isResizingPreview, setIsResizingPreview] = useState(false);
+    const [rightPanelWidth, setRightPanelWidth] = useState(300);
+    const [isResizingRightPanel, setIsResizingRightPanel] = useState(false);
     const [previewTab, setPreviewTab] = useState<"Input table" | "Output table">("Output table");
 
     // ── Selection Preview (Graph Mode) ─────────────────────────────────────────
@@ -977,17 +979,25 @@ export default function PipelineBuilderWorkspace() {
 
     useEffect(() => {
         const handleMouseMove = (e: MouseEvent) => {
-            if (!isResizingPreview) return;
-            const newHeight = window.innerHeight - e.clientY;
-            setPreviewHeight(Math.max(100, Math.min(newHeight, window.innerHeight - 200)));
+            if (isResizingPreview) {
+                const newHeight = window.innerHeight - e.clientY;
+                setPreviewHeight(Math.max(100, Math.min(newHeight, window.innerHeight - 200)));
+            }
+            if (isResizingRightPanel) {
+                const newWidth = window.innerWidth - e.clientX;
+                setRightPanelWidth(Math.max(200, Math.min(newWidth, window.innerWidth - 300)));
+            }
         };
-        const handleMouseUp = () => setIsResizingPreview(false);
-        if (isResizingPreview) {
+        const handleMouseUp = () => {
+            setIsResizingPreview(false);
+            setIsResizingRightPanel(false);
+        };
+        if (isResizingPreview || isResizingRightPanel) {
             window.addEventListener("mousemove", handleMouseMove);
             window.addEventListener("mouseup", handleMouseUp);
         }
         return () => { window.removeEventListener("mousemove", handleMouseMove); window.removeEventListener("mouseup", handleMouseUp); };
-    }, [isResizingPreview]);
+    }, [isResizingPreview, isResizingRightPanel]);
 
     const onNodesChange = useCallback(
         (changes: NodeChange[]) => setNodes(nds => applyNodeChanges(changes, nds)),
@@ -1719,13 +1729,14 @@ export default function PipelineBuilderWorkspace() {
         load();
     }, [pipelineId]);
 
-    const fetchDatasetPreview = useCallback(async (datasetId: string) => {
+    const fetchDatasetPreview = useCallback(async (datasetId: string, isDeploy = false) => {
         if (!pipeline?.projectId) {
             return { columns: DEFAULT_COLUMNS, rows: buildUnionPreviewRows(DEFAULT_COLUMNS) };
         }
 
         try {
-            const res = await fetch(`/api/ontology-admin/datasets/${datasetId}/preview?projectId=${pipeline.projectId}`);
+            const url = `/api/ontology-admin/datasets/${datasetId}/preview?projectId=${pipeline.projectId}${isDeploy ? '&limit=all' : ''}`;
+            const res = await fetch(url);
             if (res.ok) {
                 const data = await res.json() as { columns?: DatasetColumn[]; rows?: Record<string, string>[] };
                 if (Array.isArray(data.columns) && Array.isArray(data.rows)) {
@@ -1737,7 +1748,7 @@ export default function PipelineBuilderWorkspace() {
         return { columns: DEFAULT_COLUMNS, rows: buildUnionPreviewRows(DEFAULT_COLUMNS) };
     }, [pipeline?.projectId]);
 
-    const resolveNodePreview = useCallback(async (nodeId: string, visited = new Set<string>()): Promise<{ columns: DatasetColumn[]; rows: Record<string, string>[] }> => {
+    const resolveNodePreview = useCallback(async (nodeId: string, visited = new Set<string>(), isDeploy = false): Promise<{ columns: DatasetColumn[]; rows: Record<string, string>[] }> => {
         if (visited.has(nodeId)) {
             return { columns: DEFAULT_COLUMNS, rows: buildUnionPreviewRows(DEFAULT_COLUMNS) };
         }
@@ -1749,12 +1760,12 @@ export default function PipelineBuilderWorkspace() {
         }
 
         if (node.type === "outputNode" && typeof node.data?.sourceNodeId === "string") {
-            return resolveNodePreview(node.data.sourceNodeId, visited);
+            return resolveNodePreview(node.data.sourceNodeId, visited, isDeploy);
         }
 
         if (node.type === "transformNode") {
             const sourceNodeId = String(node.data?.sourceDatasetId ?? "");
-            const base = await resolveNodePreview(sourceNodeId, visited);
+            const base = await resolveNodePreview(sourceNodeId, visited, isDeploy);
             try {
                 const res = await fetch(`/api/ontology/pipelines/${pipelineId}/transforms/${nodeId}`);
                 if (res.ok) {
@@ -1767,8 +1778,10 @@ export default function PipelineBuilderWorkspace() {
 
         if (node.id.startsWith("join-")) {
             const inbound = edges.filter((edge) => edge.target === node.id).slice(0, 2);
-            const [left, right] = await Promise.all(inbound.map((edge) => resolveNodePreview(String(edge.source), new Set(visited))));
-            const joinedRows = Array.from({ length: Math.min(left?.rows?.length ?? 0, right?.rows?.length ?? 0, 50) }).map((_, index) => ({
+            const [left, right] = await Promise.all(inbound.map((edge) => resolveNodePreview(String(edge.source), new Set(visited), isDeploy)));
+
+            // For mock/fake data generation during join, limit rows visually if not deploying. Otherwise zip arrays bounded by matching row counts
+            const joinedRows = Array.from({ length: Math.min(left?.rows?.length ?? 0, right?.rows?.length ?? 0, isDeploy ? Infinity : 50) }).map((_, index) => ({
                 ...(left?.rows?.[index] ?? {}),
                 ...(right?.rows?.[index] ?? {}),
             }));
@@ -1780,8 +1793,9 @@ export default function PipelineBuilderWorkspace() {
 
         if (node.id.startsWith("union-")) {
             const inbound = edges.filter((edge) => edge.target === node.id).slice(0, 2);
-            const previews = await Promise.all(inbound.map((edge) => resolveNodePreview(String(edge.source), new Set(visited))));
-            const rows = previews.flatMap((preview) => preview.rows).slice(0, 100);
+            const previews = await Promise.all(inbound.map((edge) => resolveNodePreview(String(edge.source), new Set(visited), isDeploy)));
+            let rows = previews.flatMap((preview) => preview.rows);
+            if (!isDeploy) rows = rows.slice(0, 100);
             return {
                 columns: (node.data?.columns ?? previews[0]?.columns ?? DEFAULT_COLUMNS) as DatasetColumn[],
                 rows: rows.length > 0 ? rows : buildUnionPreviewRows((node.data?.columns ?? DEFAULT_COLUMNS) as DatasetColumn[]),
@@ -1790,7 +1804,7 @@ export default function PipelineBuilderWorkspace() {
 
         const datasetId = String(node.data?.datasetId ?? "");
         if (datasetId && !isVirtualDatasetId(datasetId)) {
-            return fetchDatasetPreview(datasetId);
+            return fetchDatasetPreview(datasetId, isDeploy);
         }
 
         return {
@@ -1810,7 +1824,7 @@ export default function PipelineBuilderWorkspace() {
 
         try {
             const outputPayload = await Promise.all(outputs.map(async (output) => {
-                const preview = await resolveNodePreview(output.sourceNodeId);
+                const preview = await resolveNodePreview(output.sourceNodeId, new Set<string>(), true);
                 return {
                     id: output.id,
                     name: output.name,
@@ -2627,7 +2641,8 @@ export default function PipelineBuilderWorkspace() {
                             </div>
 
                             {/* ── Right Sidebar: Pipeline outputs ── */}
-                            <div className="w-[280px] border-l border-gray-200 bg-white flex flex-col shrink-0">
+                            <div style={{ width: rightPanelWidth }} className="border-l border-gray-200 bg-white flex flex-col shrink-0 relative">
+                                <div onMouseDown={() => setIsResizingRightPanel(true)} className="absolute top-0 bottom-0 left-0 w-1.5 cursor-col-resize z-50 hover:bg-blue-300 opacity-40 -translate-x-1/2" />
                                 <div className="h-10 border-b border-gray-200 flex items-center justify-between px-3">
                                     <span className="text-[13px] font-bold text-gray-900">{rightPanelMode === "deploy" ? "Deploy this pipeline" : "Pipeline outputs"}</span>
                                     <div className="flex items-center gap-2">
@@ -3136,7 +3151,8 @@ export default function PipelineBuilderWorkspace() {
                 )}
 
                 {!activeTransformNodeId && (
-                    <div className="w-[300px] border-l border-gray-200 bg-white flex flex-col shrink-0 overflow-y-auto">
+                    <div style={{ width: rightPanelWidth }} className="border-l border-gray-200 bg-white flex flex-col shrink-0 overflow-y-auto relative">
+                        <div onMouseDown={() => setIsResizingRightPanel(true)} className="absolute top-0 bottom-0 left-0 w-1.5 cursor-col-resize z-50 hover:bg-blue-300 opacity-40 -translate-x-1/2" />
                         <div className="h-10 border-b border-gray-200 flex items-center justify-between px-3 shrink-0">
                             <span className="text-[13px] font-bold text-gray-900">{
                                 rightPanelMode === "deploy" ? "Deploy this pipeline" :

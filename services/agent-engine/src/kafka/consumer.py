@@ -1,5 +1,6 @@
 import json
 import asyncio
+import time
 import httpx
 import structlog
 from confluent_kafka import Consumer, KafkaException
@@ -8,7 +9,6 @@ from src.config import settings
 
 log = structlog.get_logger(__name__)
 
-KAFKA_BROKER = "localhost:9092"
 TOPIC_NAME = "yaip.edge.telemetry"
 
 _consumer_task: asyncio.Task | None = None
@@ -25,7 +25,7 @@ async def start_kafka_consumer():
 
 def _consume_loop():
     consumer = Consumer({
-        'bootstrap.servers': KAFKA_BROKER,
+        'bootstrap.servers': settings.kafka_brokers,
         'group.id': 'agent-engine-telemetry-group',
         'auto.offset.reset': 'latest'
     })

@@ -1,10 +1,11 @@
 import time
 import json
+import os
 import threading
 from confluent_kafka import Producer
 from src.local_db import get_unsynced_telemetry, mark_as_synced
 
-KAFKA_BROKER = "localhost:9092"
+KAFKA_BROKER = os.getenv("KAFKA_BROKERS", "localhost:29092")
 TOPIC = "yaip.edge.telemetry"
 
 class SyncWorker:

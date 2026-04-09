@@ -247,7 +247,8 @@ export async function generateDynamicTypeDefs(driver: Driver): Promise<string> {
         return sdl;
 
     } catch (error) {
-        console.error("Critical: Failed to generate dynamic schema from Ontology Registry", error);
+        const message = error instanceof Error ? error.message : String(error);
+        console.warn(`Ontology Registry unavailable; using static GraphQL schema only. ${message}`);
         return "";
     } finally {
         await session.close();

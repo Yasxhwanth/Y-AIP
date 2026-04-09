@@ -132,14 +132,26 @@ export default function OntologyManagerPage() {
 
     const resources = [
         { id: "Objects", label: "Object types", icon: Database, count: resourceCounts.Objects },
+        { id: "Properties", label: "Properties", icon: Settings, count: 0 },
+        { id: "SharedProps", label: "Shared properties", icon: Share2, count: 138 },
         { id: "Links", label: "Link types", icon: Link2, count: resourceCounts.Links },
         { id: "Actions", label: "Action types", icon: Zap, count: resourceCounts.Actions, separator: true },
         { id: "Groups", label: "Groups", icon: LayoutGrid, count: 3 },
         { id: "Interfaces", label: "Interfaces", icon: Share2, count: resourceCounts.Interfaces },
+        { id: "ValueTypes", label: "Value types", icon: Settings, count: 20 },
+        { id: "Functions", label: "Functions", icon: Settings, count: 267 },
     ];
 
     return (
         <div style={{ height: "100vh", display: "flex", flexDirection: "column", background: "#0a0f1a", fontFamily: "'Inter', sans-serif", color: "#e5e7eb", overflow: "hidden" }}>
+
+            {/* ── WIZARD MODAL OVERLAY (rendered at root so it covers everything) ── */}
+            {showWizard && (
+                <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.65)", zIndex: 500, display: "flex", alignItems: "center", justifyContent: "center" }}
+                    onClick={(e) => { if (e.target === e.currentTarget) setShowWizard(false); }}>
+                    <NewObjectTypeWizard onSuccess={() => { setShowWizard(false); fetchSchema(); }} onCancel={() => setShowWizard(false)} />
+                </div>
+            )}
 
             {/* ── HEADER ────────────────────────────────────────────────────── */}
             <div style={{ height: 48, borderBottom: "1px solid #1f2937", display: "flex", alignItems: "center", justifyContent: "space-between", paddingLeft: 16, paddingRight: 16, background: "#111827", flexShrink: 0 }}>
@@ -196,24 +208,28 @@ export default function OntologyManagerPage() {
                             New <ChevronDown size={14} />
                         </button>
                         {showNewDropdown && (
-                            <div style={{ position: "absolute", top: "100%", right: 0, marginTop: 4, width: 240, background: "#111827", border: "1px solid #1f2937", borderRadius: 6, zIndex: 100, boxShadow: "0 10px 15px -3px rgba(0, 0, 0, 0.5)" }}>
-                                <div style={{ padding: 4 }}>
+                            <div style={{ position: "absolute", top: "100%", right: 0, marginTop: 4, width: 260, background: "#fff", border: "1px solid #e5e7eb", borderRadius: 8, zIndex: 600, boxShadow: "0 10px 30px rgba(0,0,0,0.2)" }}>
+                                <div style={{ padding: 6 }}>
                                     {[
                                         { label: "Object type", desc: "Map datasets and models to object types", icon: Database, action: () => setShowWizard(true) },
-                                        { label: "Link type", desc: "Create relationships between object types", icon: Link2, action: () => { setView("Links"); setShowNewLinkForm(true); } },
+                                        { label: "Link type", desc: "Create relationships between object types", icon: Link2, action: () => { setView("Links"); } },
                                         { label: "Action type", desc: "Allow users to writeback to their ontology", icon: Zap, action: () => { setView("Actions"); setShowNewActionForm(true); } },
-                                        { label: "Shared property", desc: "Create properties that can be shared across...", icon: Settings },
-                                        { label: "Interface", desc: "Use interfaces to build against abstract types", icon: Share2, action: () => { setView("Interfaces"); setShowNewInterfaceForm(true); } }
+                                        { label: "Shared property", desc: "Create properties that can be shared across object types", icon: Share2 },
+                                        { label: "Group", desc: "Use groups to create ontology taxonomies", icon: LayoutGrid },
+                                        { label: "Interface", desc: "Use interfaces to build against abstract types", icon: Share2, action: () => { setView("Interfaces"); setShowNewInterfaceForm(true); } },
+                                        { label: "Function", desc: "Define object modifications in code", icon: Settings },
+                                        { label: "Value type", desc: "Define constraints that can be applied to property values", icon: Settings }
                                     ].map((item, idx) => (
-                                        <div
-                                            key={idx}
-                                            onClick={() => { item.action?.(); setShowNewDropdown(false); }}
-                                            style={{ padding: "10px 12px", cursor: "pointer", borderRadius: 4, display: "flex", gap: 12 }}
-                                        >
-                                            <div style={{ width: 16, height: 16, marginTop: 2 }}><item.icon size={16} color="#9ca3af" /></div>
+                                        <div key={idx} onClick={() => { item.action?.(); setShowNewDropdown(false); }}
+                                            style={{ padding: "8px 10px", cursor: "pointer", borderRadius: 5, display: "flex", gap: 10, alignItems: "flex-start" }}
+                                            onMouseEnter={e => (e.currentTarget.style.background = "#f9fafb")}
+                                            onMouseLeave={e => (e.currentTarget.style.background = "transparent")}>
+                                            <div style={{ width: 28, height: 28, background: "#eff6ff", borderRadius: 6, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, marginTop: 1 }}>
+                                                <item.icon size={14} color="#2563eb" />
+                                            </div>
                                             <div>
-                                                <div style={{ fontSize: 12, fontWeight: 600, color: "#f9fafb" }}>{item.label}</div>
-                                                <div style={{ fontSize: 10, color: "#6b7280" }}>{item.desc}</div>
+                                                <div style={{ fontSize: 13, fontWeight: 600, color: "#111827" }}>{item.label}</div>
+                                                <div style={{ fontSize: 11, color: "#6b7280", marginTop: 1 }}>{item.desc}</div>
                                             </div>
                                         </div>
                                     ))}
@@ -271,8 +287,8 @@ export default function OntologyManagerPage() {
                     </div>
                 </div>
 
-                {/* ── MAIN VIEWPORT ─────────────────────────────────────────────── */}
-                <div style={{ flex: 1, overflowY: "auto", background: "#0d1117" }}>
+                {/* ── MAIN VIEWPORT ── */}
+                <div style={{ flex: 1, overflowY: "auto", background: "#ffffff" }}>
                     {view === "discover" ? (
                         <DiscoveryView schema={schema} onObjectClick={(ot: OntologyObjectType) => { setView("Objects"); setSelectedObject(ot); }} />
                     ) : (
@@ -286,7 +302,7 @@ export default function OntologyManagerPage() {
                             setSelectedAction={setSelectedAction}
                             selectedInterface={selectedInterface}
                             setSelectedInterface={setSelectedInterface}
-                            showWizard={showWizard}
+                            showWizard={false}
                             setShowWizard={setShowWizard}
                             showNewLinkForm={showNewLinkForm}
                             setShowNewLinkForm={setShowNewLinkForm}
@@ -330,46 +346,54 @@ function SidebarItem({ active, onClick, icon: Icon, label, count }: { active?: b
 
 function DiscoveryView({ schema, onObjectClick }: { schema: OntologySchema | null; onObjectClick: (ot: OntologyObjectType) => void }) {
     const recentlyViewed = schema?.object_types.slice(0, 6) ?? [];
+    const count = schema?.object_types.length ?? 0;
 
     return (
-        <div style={{ padding: 40 }}>
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 24 }}>
-                <h2 style={{ fontSize: 14, fontWeight: 700, color: "#f9fafb" }}>Recently viewed object types <Badge label={String(schema?.object_types.length ?? 0)} color="#6b7280" /></h2>
-                <div style={{ display: "flex", gap: 12 }}>
-                    <button style={{ background: "none", border: "1px solid #1f2937", borderRadius: 4, padding: "4px 12px", color: "#9ca3af", fontSize: 12, display: "flex", alignItems: "center", gap: 8 }}>
-                        <Grid size={14} /> Configure
+        <div style={{ padding: "32px 40px", background: "#ffffff", minHeight: "100%" }}>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 20 }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                    <span style={{ fontSize: 14, fontWeight: 600, color: "#111827" }}>Recently viewed object types</span>
+                    <span style={{ background: "#f3f4f6", color: "#374151", borderRadius: 10, padding: "1px 8px", fontSize: 11, fontWeight: 600 }}>{count}</span>
+                    <button style={{ background: "none", border: "none", color: "#6b7280", cursor: "pointer", fontSize: 14, padding: 0 }}>↺</button>
+                </div>
+                <div style={{ display: "flex", gap: 10 }}>
+                    <button style={{ background: "none", border: "1px solid #e5e7eb", borderRadius: 5, padding: "5px 12px", color: "#374151", fontSize: 12, display: "flex", alignItems: "center", gap: 6, cursor: "pointer" }}>
+                        <Grid size={13} /> Configure
                     </button>
-                    <button style={{ background: "none", border: "none", color: "#3b82f6", fontSize: 12, fontWeight: 600, display: "flex", alignItems: "center", gap: 4 }}>
-                        See all <ChevronDown size={14} style={{ transform: "rotate(-90deg)" }} />
+                    <button style={{ background: "none", border: "none", color: "#2563eb", fontSize: 12, fontWeight: 600, display: "flex", alignItems: "center", gap: 3, cursor: "pointer" }}>
+                        See all <ChevronDown size={13} style={{ transform: "rotate(-90deg)" }} />
                     </button>
                 </div>
             </div>
 
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(320px, 1fr))", gap: 20 }}>
-                {recentlyViewed.map((ot: OntologyObjectType) => (
-                    <div
-                        key={ot.api_name}
-                        onClick={() => onObjectClick(ot)}
-                        style={{ background: "#111827", border: "1px solid #1f2937", borderRadius: 8, padding: 20, cursor: "pointer" }}
-                    >
-                        <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 12 }}>
-                            <div style={{ width: 32, height: 32, background: "#1e293b", borderRadius: 6, display: "flex", alignItems: "center", justifyContent: "center" }}>
-                                <Database size={16} color="#3b82f6" />
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(300px, 1fr))", gap: 16 }}>
+                {recentlyViewed.length === 0 ? (
+                    <div style={{ gridColumn: "1/-1", textAlign: "center", padding: "60px 0", color: "#9ca3af", fontSize: 14 }}>No object types yet. Click New → Object type to create one.</div>
+                ) : recentlyViewed.map((ot: OntologyObjectType) => (
+                    <div key={ot.api_name} onClick={() => onObjectClick(ot)}
+                        style={{ background: "#fff", border: "1px solid #e5e7eb", borderRadius: 8, padding: 20, cursor: "pointer", transition: "box-shadow 0.15s", boxShadow: "0 1px 3px rgba(0,0,0,0.05)" }}
+                        onMouseEnter={e => (e.currentTarget.style.boxShadow = "0 4px 12px rgba(0,0,0,0.1)")}
+                        onMouseLeave={e => (e.currentTarget.style.boxShadow = "0 1px 3px rgba(0,0,0,0.05)")}>
+                        <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 10 }}>
+                            <div style={{ width: 30, height: 30, background: "#eff6ff", borderRadius: 6, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                                <Database size={15} color="#2563eb" />
                             </div>
-                            <div>
-                                <div style={{ fontSize: 13, fontWeight: 600, color: "#f9fafb" }}>{ot.display_name}</div>
+                            <div style={{ flex: 1 }}>
+                                <div style={{ fontSize: 13, fontWeight: 600, color: "#111827" }}>{ot.display_name}</div>
                                 <div style={{ fontSize: 11, color: "#6b7280" }}>{ot.properties?.length ?? 0} objects</div>
                             </div>
-                            <div style={{ marginLeft: "auto" }}><MoreVertical size={14} color="#4b5563" /></div>
+                            <MoreVertical size={14} color="#9ca3af" />
                         </div>
-                        <div style={{ fontSize: 12, color: "#9ca3af", marginBottom: 16 }}>{ot.description || "No description"}</div>
-                        <div style={{ fontSize: 11, color: "#4b5563" }}>3 dependents</div>
+                        <div style={{ fontSize: 12, color: "#6b7280", marginBottom: 10, minHeight: 20 }}>{ot.description || "No description"}</div>
+                        <div style={{ fontSize: 11, color: "#9ca3af" }}>3 dependents</div>
                     </div>
                 ))}
             </div>
         </div>
     );
 }
+
+
 
 function TabView(props: {
     activeTab: Tab;

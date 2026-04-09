@@ -1,0 +1,64 @@
+{
+  "pathName": "Transform path 1",
+  "transforms": [
+    {
+      "id": "t-1775485947795",
+      "type": "Cast",
+      "applied": true,
+      "params": {
+        "column": "dueDateTime",
+        "targetColumn": "dueDateTime",
+        "toType": "Timestamp"
+      }
+    },
+    {
+      "id": "t-1775485974491",
+      "type": "Normalize column names",
+      "applied": true,
+      "params": {
+        "removeSpecial": false
+      }
+    },
+    {
+      "id": "t-1775485985265",
+      "type": "Drop columns",
+      "applied": true,
+      "params": {
+        "columns": [
+          "orderplacementdate"
+        ]
+      }
+    },
+    {
+      "id": "t-1775486039760",
+      "type": "Rename columns",
+      "applied": true,
+      "params": {
+        "source": "duedatetime",
+        "target": "order_due_date"
+      }
+    },
+    {
+      "id": "t-1775486060837",
+      "type": "Filter rows",
+      "applied": true,
+      "params": {
+        "mode": "Keep rows",
+        "matchMode": "all conditions",
+        "column": "orderid",
+        "condition": "is not null",
+        "value": "",
+        "treatEmpty": true
+      }
+    },
+    {
+      "id": "t-1775486080525",
+      "type": "Rename columns",
+      "applied": true,
+      "params": {
+        "source": "orderid",
+        "target": "order_id"
+      }
+    }
+  ]
+}

@@ -1,0 +1,36 @@
+{
+  "pathName": "Transform path 1",
+  "transforms": [
+    {
+      "id": "t-1775580724760",
+      "type": "Filter rows",
+      "applied": true,
+      "params": {
+        "mode": "Keep rows",
+        "matchMode": "all conditions",
+        "column": "customer_id",
+        "condition": "is not null",
+        "value": "",
+        "treatEmpty": true
+      }
+    },
+    {
+      "id": "t-1775580736083",
+      "type": "Normalize column names",
+      "applied": true,
+      "params": {
+        "removeSpecial": false
+      }
+    },
+    {
+      "id": "t-1775580746383",
+      "type": "Cast",
+      "applied": true,
+      "params": {
+        "column": "order_due_date",
+        "targetColumn": "order_due_date",
+        "toType": "Timestamp"
+      }
+    }
+  ]
+}

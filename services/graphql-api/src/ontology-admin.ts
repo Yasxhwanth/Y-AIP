@@ -791,7 +791,7 @@ export async function registerOntologyAdminRoutes(app: FastifyInstance, driver: 
     // Stream a CSV dataset directly to JSON for the builder UI
     app.get("/api/ontology/datasets/:id/preview", async (req: any, reply) => {
         const { id } = req.params;
-        const { projectId } = req.query;
+        const { projectId, limit } = req.query;
         let filePath = "";
 
         // ── 1. Try Neo4j first ────────────────────────────────────────────────
@@ -877,7 +877,8 @@ export async function registerOntologyAdminRoutes(app: FastifyInstance, driver: 
             const columns = headers.map(h => ({ name: h, type: "String" }));
             const rows: Record<string, string>[] = [];
 
-            for (let i = 1; i < Math.min(lines.length, 501); i++) {
+            const maxLines = limit === "all" ? lines.length : Math.min(lines.length, 501);
+            for (let i = 1; i < maxLines; i++) {
                 const values = parseCSVLine(lines[i]);
                 const rowObj: Record<string, string> = {};
                 headers.forEach((h, idx) => { rowObj[h] = values[idx] ?? ""; });

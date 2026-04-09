@@ -1,5 +1,6 @@
 import time
 import json
+import os
 import signal
 import sys
 import argparse
@@ -7,7 +8,7 @@ from confluent_kafka import Consumer
 from src.hardware import SimulatedDroneHardware
 from src.sync_worker import SyncWorker
 
-KAFKA_BROKER = "localhost:9092"
+KAFKA_BROKER = os.getenv("KAFKA_BROKERS", "localhost:29092")
 COMMAND_TOPIC = "yaip.edge.commands"
 
 # We pass DRONE_ID to simulate multiple physical devices

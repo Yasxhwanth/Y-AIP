@@ -12,6 +12,9 @@
         "dev:graphql": "npm run dev --workspace=services/graphql-api",
         "start:all": "node start_all.js",
         "install:all": "npm install --workspaces",
+        "install:py": "python -m pip install -r services/agent-engine/requirements.txt -r services/actions-worker/requirements.txt -r services/edge-agent/requirements.txt",
+        "infra:up": "powershell -ExecutionPolicy Bypass -File infra/start.ps1",
+        "infra:status": "powershell -ExecutionPolicy Bypass -File infra/start.ps1 -Status",
         "build:all": "npm run build --workspaces --if-present",
         "lint:all": "npm run lint --workspaces --if-present"
     },

@@ -1,0 +1,166 @@
+{
+  "branches": {
+    "Main": {
+      "nodes": [
+        {
+          "id": "dataset-consolidated_customers.csv-1775482103962",
+          "position": {
+            "x": 483.7765737440541,
+            "y": 77.9809578266561
+          },
+          "data": {
+            "label": "consolidated_customers.csv",
+            "datasetId": "consolidated_customers.csv",
+            "columns": [
+              {
+                "name": "officegoods_customer_id",
+                "type": "String"
+              },
+              {
+                "name": "bureau_customer_id",
+                "type": "String"
+              },
+              {
+                "name": "consolidated_customer_id",
+                "type": "String"
+              },
+              {
+                "name": "customer_name",
+                "type": "String"
+              }
+            ]
+          },
+          "type": "datasetNode",
+          "width": 260,
+          "height": 76,
+          "selected": false,
+          "positionAbsolute": {
+            "x": 483.7765737440541,
+            "y": 77.9809578266561
+          },
+          "dragging": false
+        },
+        {
+          "id": "dataset-orders_bureau_transactional_system.csv-1775482103963",
+          "position": {
+            "x": 480,
+            "y": 200
+          },
+          "data": {
+            "label": "orders_bureau_transactional_system.csv",
+            "datasetId": "orders_bureau_transactional_system.csv",
+            "columns": [
+              {
+                "name": "order_id",
+                "type": "String"
+              },
+              {
+                "name": "customer_id",
+                "type": "String"
+              },
+              {
+                "name": "status",
+                "type": "String"
+              },
+              {
+                "name": "assignee",
+                "type": "String"
+              },
+              {
+                "name": "quantity",
+                "type": "String"
+              },
+              {
+                "name": "item_name",
+                "type": "String"
+              },
+              {
+                "name": "unit_price",
+                "type": "String"
+              },
+              {
+                "name": "order_due_date",
+                "type": "String"
+              },
+              {
+                "name": "days_until_due",
+                "type": "String"
+              }
+            ]
+          },
+          "type": "datasetNode",
+          "width": 260,
+          "height": 76
+        },
+        {
+          "id": "dataset-orders_office_goods.csv-1775482103964",
+          "position": {
+            "x": 476.2234262559459,
+            "y": 320.7480104840382
+          },
+          "data": {
+            "label": "orders_office_goods.csv",
+            "datasetId": "orders_office_goods.csv",
+            "columns": [
+              {
+                "name": "dueDateTime",
+                "type": "String"
+              },
+              {
+                "name": "orderId",
+                "type": "String"
+              },
+              {
+                "name": "customer_id",
+                "type": "String"
+              },
+              {
+                "name": "orderPlacementDate",
+                "type": "String"
+              },
+              {
+                "name": "status",
+                "type": "String"
+              },
+              {
+                "name": "assignee",
+                "type": "String"
+              },
+              {
+                "name": "quantity",
+                "type": "String"
+              },
+              {
+                "name": "item_name",
+                "type": "String"
+              },
+              {
+                "name": "unit_price",
+                "type": "String"
+              },
+              {
+                "name": "days_until_due",
+                "type": "String"
+              }
+            ]
+          },
+          "type": "datasetNode",
+          "width": 260,
+          "height": 76,
+          "selected": false,
+          "positionAbsolute": {
+            "x": 476.2234262559459,
+            "y": 320.7480104840382
+          },
+          "dragging": false
+        }
+      ],
+      "edges": []
+    }
+  },
+  "outputs": [],
+  "deployState": null,
+  "transforms": [],
+  "activeBranch": "Main",
+  "savedAt": "2026-04-06T14:31:46.012Z"
+}

@@ -1,0 +1,606 @@
+{
+  "branches": {
+    "Main": {
+      "nodes": [
+        {
+          "id": "dataset-consolidated_customers.csv-1775481436262",
+          "position": {
+            "x": 404,
+            "y": 50
+          },
+          "data": {
+            "label": "consolidated_customers.csv",
+            "datasetId": "consolidated_customers.csv",
+            "columns": [
+              {
+                "name": "officegoods_customer_id",
+                "type": "String"
+              },
+              {
+                "name": "bureau_customer_id",
+                "type": "String"
+              },
+              {
+                "name": "consolidated_customer_id",
+                "type": "String"
+              },
+              {
+                "name": "customer_name",
+                "type": "String"
+              }
+            ]
+          },
+          "type": "datasetNode",
+          "width": 260,
+          "height": 76,
+          "selected": false,
+          "positionAbsolute": {
+            "x": 404,
+            "y": 50
+          },
+          "dragging": false
+        },
+        {
+          "id": "dataset-orders_bureau_transactional_system.csv-1775481436263",
+          "position": {
+            "x": 404,
+            "y": 147
+          },
+          "data": {
+            "label": "orders_bureau_transactional_system.csv",
+            "datasetId": "orders_bureau_transactional_system.csv",
+            "columns": [
+              {
+                "name": "order_id",
+                "type": "String"
+              },
+              {
+                "name": "customer_id",
+                "type": "String"
+              },
+              {
+                "name": "status",
+                "type": "String"
+              },
+              {
+                "name": "assignee",
+                "type": "String"
+              },
+              {
+                "name": "quantity",
+                "type": "String"
+              },
+              {
+                "name": "item_name",
+                "type": "String"
+              },
+              {
+                "name": "unit_price",
+                "type": "String"
+              },
+              {
+                "name": "order_due_date",
+                "type": "String"
+              },
+              {
+                "name": "days_until_due",
+                "type": "String"
+              }
+            ]
+          },
+          "type": "datasetNode",
+          "width": 260,
+          "height": 76,
+          "selected": false,
+          "positionAbsolute": {
+            "x": 404,
+            "y": 147
+          },
+          "dragging": false
+        },
+        {
+          "id": "dataset-orders_office_goods.csv-1775481436264",
+          "position": {
+            "x": 407,
+            "y": 247.399951171875
+          },
+          "data": {
+            "label": "orders_office_goods.csv",
+            "datasetId": "orders_office_goods.csv",
+            "columns": [
+              {
+                "name": "dueDateTime",
+                "type": "String"
+              },
+              {
+                "name": "orderId",
+                "type": "String"
+              },
+              {
+                "name": "customer_id",
+                "type": "String"
+              },
+              {
+                "name": "orderPlacementDate",
+                "type": "String"
+              },
+              {
+                "name": "status",
+                "type": "String"
+              },
+              {
+                "name": "assignee",
+                "type": "String"
+              },
+              {
+                "name": "quantity",
+                "type": "String"
+              },
+              {
+                "name": "item_name",
+                "type": "String"
+              },
+              {
+                "name": "unit_price",
+                "type": "String"
+              },
+              {
+                "name": "days_until_due",
+                "type": "String"
+              }
+            ]
+          },
+          "type": "datasetNode",
+          "width": 260,
+          "height": 76,
+          "selected": false,
+          "positionAbsolute": {
+            "x": 407,
+            "y": 247.399951171875
+          },
+          "dragging": false
+        },
+        {
+          "id": "transform-dataset-orders_bureau_transactional_system.csv-1775481436263",
+          "position": {
+            "x": 754,
+            "y": 147
+          },
+          "type": "transformNode",
+          "data": {
+            "label": "Transform path 1",
+            "columns": [
+              {
+                "name": "order_id",
+                "type": "String"
+              },
+              {
+                "name": "customer_id",
+                "type": "String"
+              },
+              {
+                "name": "status",
+                "type": "String"
+              },
+              {
+                "name": "assignee",
+                "type": "String"
+              },
+              {
+                "name": "quantity",
+                "type": "String"
+              },
+              {
+                "name": "item_name",
+                "type": "String"
+              },
+              {
+                "name": "unit_price",
+                "type": "String"
+              },
+              {
+                "name": "order_due_date",
+                "type": "Timestamp"
+              },
+              {
+                "name": "days_until_due",
+                "type": "String"
+              }
+            ],
+            "sourceDatasetId": "dataset-orders_bureau_transactional_system.csv-1775481436263",
+            "datasetId": "transform-dataset-orders_bureau_transactional_system.csv-1775481436263"
+          },
+          "width": 192,
+          "height": 66,
+          "selected": false,
+          "dragging": false
+        },
+        {
+          "id": "transform-dataset-orders_office_goods.csv-1775481436264",
+          "position": {
+            "x": 757,
+            "y": 247.399951171875
+          },
+          "type": "transformNode",
+          "data": {
+            "label": "Transform path 1",
+            "columns": [
+              {
+                "name": "order_due_date",
+                "type": "Timestamp"
+              },
+              {
+                "name": "order_id",
+                "type": "String"
+              },
+              {
+                "name": "customer_id",
+                "type": "String"
+              },
+              {
+                "name": "status",
+                "type": "String"
+              },
+              {
+                "name": "assignee",
+                "type": "String"
+              },
+              {
+                "name": "quantity",
+                "type": "String"
+              },
+              {
+                "name": "item_name",
+                "type": "String"
+              },
+              {
+                "name": "unit_price",
+                "type": "String"
+              },
+              {
+                "name": "days_until_due",
+                "type": "String"
+              }
+            ],
+            "sourceDatasetId": "dataset-orders_office_goods.csv-1775481436264",
+            "datasetId": "transform-dataset-orders_office_goods.csv-1775481436264"
+          },
+          "width": 192,
+          "height": 66,
+          "selected": false,
+          "dragging": false
+        },
+        {
+          "id": "join-transform-dataset-orders_bureau_transactional_system.csv-1775481436263-dataset-consolidated_customers.csv-1775481436262",
+          "position": {
+            "x": 1133.407502775665,
+            "y": 53.227473168571834
+          },
+          "type": "datasetNode",
+          "data": {
+            "label": "Join",
+            "columns": [
+              {
+                "name": "order_id",
+                "type": "String",
+                "selected": true
+              },
+              {
+                "name": "customer_id",
+                "type": "String",
+                "selected": true
+              },
+              {
+                "name": "status",
+                "type": "String",
+                "selected": true
+              },
+              {
+                "name": "assignee",
+                "type": "String",
+                "selected": true
+              },
+              {
+                "name": "quantity",
+                "type": "String",
+                "selected": true
+              },
+              {
+                "name": "item_name",
+                "type": "String",
+                "selected": true
+              },
+              {
+                "name": "unit_price",
+                "type": "String",
+                "selected": true
+              },
+              {
+                "name": "order_due_date",
+                "type": "Timestamp",
+                "selected": true
+              },
+              {
+                "name": "days_until_due",
+                "type": "String",
+                "selected": true
+              },
+              {
+                "name": "consolidated_customer_id",
+                "type": "String",
+                "selected": true
+              },
+              {
+                "name": "customer_name",
+                "type": "String",
+                "selected": true
+              }
+            ],
+            "datasetId": "join-transform-dataset-orders_bureau_transactional_system.csv-1775481436263-dataset-consolidated_customers.csv-1775481436262"
+          },
+          "width": 260,
+          "height": 76,
+          "selected": false,
+          "positionAbsolute": {
+            "x": 1133.407502775665,
+            "y": 53.227473168571834
+          },
+          "dragging": false
+        },
+        {
+          "id": "join-transform-dataset-orders_office_goods.csv-1775481436264-dataset-consolidated_customers.csv-1775481436262",
+          "position": {
+            "x": 1143.1974990747785,
+            "y": 247.30497743638082
+          },
+          "type": "datasetNode",
+          "data": {
+            "label": "Join",
+            "columns": [
+              {
+                "name": "order_due_date",
+                "type": "Timestamp",
+                "selected": true
+              },
+              {
+                "name": "order_id",
+                "type": "String",
+                "selected": true
+              },
+              {
+                "name": "customer_id",
+                "type": "String",
+                "selected": true
+              },
+              {
+                "name": "status",
+                "type": "String",
+                "selected": true
+              },
+              {
+                "name": "assignee",
+                "type": "String",
+                "selected": true
+              },
+              {
+                "name": "quantity",
+                "type": "String",
+                "selected": true
+              },
+              {
+                "name": "item_name",
+                "type": "String",
+                "selected": true
+              },
+              {
+                "name": "unit_price",
+                "type": "String",
+                "selected": true
+              },
+              {
+                "name": "days_until_due",
+                "type": "String",
+                "selected": true
+              },
+              {
+                "name": "consolidated_customer_id",
+                "type": "String",
+                "selected": true
+              },
+              {
+                "name": "customer_name",
+                "type": "String",
+                "selected": true
+              }
+            ],
+            "datasetId": "join-transform-dataset-orders_office_goods.csv-1775481436264-dataset-consolidated_customers.csv-1775481436262"
+          },
+          "width": 260,
+          "height": 76,
+          "selected": true,
+          "positionAbsolute": {
+            "x": 1143.1974990747785,
+            "y": 247.30497743638082
+          },
+          "dragging": false
+        },
+        {
+          "id": "union-join-transform-dataset-orders_bureau_transactional_system.csv-1775481436263-dataset-consolidated_customers.csv-1775481436262-join-transform-dataset-orders_office_goods.csv-1775481436264-dataset-consolidated_customers.csv-1775481436262",
+          "position": {
+            "x": 1485,
+            "y": 182.91998291015625
+          },
+          "type": "datasetNode",
+          "data": {
+            "label": "Union",
+            "columns": [
+              {
+                "name": "order_due_date",
+                "type": "Timestamp",
+                "selected": true
+              },
+              {
+                "name": "order_id",
+                "type": "String",
+                "selected": true
+              },
+              {
+                "name": "customer_id",
+                "type": "String",
+                "selected": true
+              },
+              {
+                "name": "status",
+                "type": "String",
+                "selected": true
+              },
+              {
+                "name": "assignee",
+                "type": "String",
+                "selected": true
+              },
+              {
+                "name": "quantity",
+                "type": "String",
+                "selected": true
+              },
+              {
+                "name": "item_name",
+                "type": "String",
+                "selected": true
+              },
+              {
+                "name": "unit_price",
+                "type": "String",
+                "selected": true
+              },
+              {
+                "name": "days_until_due",
+                "type": "String",
+                "selected": true
+              },
+              {
+                "name": "consolidated_customer_id",
+                "type": "String",
+                "selected": true
+              },
+              {
+                "name": "customer_name",
+                "type": "String",
+                "selected": true
+              }
+            ],
+            "datasetId": "union-join-transform-dataset-orders_bureau_transactional_system.csv-1775481436263-dataset-consolidated_customers.csv-1775481436262-join-transform-dataset-orders_office_goods.csv-1775481436264-dataset-consolidated_customers.csv-1775481436262",
+            "unionInputNodeIds": [
+              "join-transform-dataset-orders_office_goods.csv-1775481436264-dataset-consolidated_customers.csv-1775481436262",
+              "join-transform-dataset-orders_bureau_transactional_system.csv-1775481436263-dataset-consolidated_customers.csv-1775481436262"
+            ]
+          },
+          "width": 260,
+          "height": 76,
+          "selected": false,
+          "positionAbsolute": {
+            "x": 1485,
+            "y": 182.91998291015625
+          },
+          "dragging": false
+        }
+      ],
+      "edges": [
+        {
+          "id": "edge-dataset-orders_bureau_transactional_system.csv-1775481436263-transform-dataset-orders_bureau_transactional_system.csv-1775481436263",
+          "source": "dataset-orders_bureau_transactional_system.csv-1775481436263",
+          "target": "transform-dataset-orders_bureau_transactional_system.csv-1775481436263",
+          "type": "default",
+          "animated": true,
+          "style": {
+            "stroke": "#9ca3af",
+            "strokeWidth": 2
+          }
+        },
+        {
+          "id": "edge-dataset-orders_office_goods.csv-1775481436264-transform-dataset-orders_office_goods.csv-1775481436264",
+          "source": "dataset-orders_office_goods.csv-1775481436264",
+          "target": "transform-dataset-orders_office_goods.csv-1775481436264",
+          "type": "default",
+          "animated": true,
+          "style": {
+            "stroke": "#9ca3af",
+            "strokeWidth": 2
+          }
+        },
+        {
+          "id": "edge-transform-dataset-orders_bureau_transactional_system.csv-1775481436263-join-transform-dataset-orders_bureau_transactional_system.csv-1775481436263-dataset-consolidated_customers.csv-1775481436262",
+          "source": "transform-dataset-orders_bureau_transactional_system.csv-1775481436263",
+          "target": "join-transform-dataset-orders_bureau_transactional_system.csv-1775481436263-dataset-consolidated_customers.csv-1775481436262",
+          "type": "default",
+          "animated": true,
+          "style": {
+            "stroke": "#6366f1",
+            "strokeWidth": 2
+          }
+        },
+        {
+          "id": "edge-dataset-consolidated_customers.csv-1775481436262-join-transform-dataset-orders_bureau_transactional_system.csv-1775481436263-dataset-consolidated_customers.csv-1775481436262",
+          "source": "dataset-consolidated_customers.csv-1775481436262",
+          "target": "join-transform-dataset-orders_bureau_transactional_system.csv-1775481436263-dataset-consolidated_customers.csv-1775481436262",
+          "type": "default",
+          "animated": true,
+          "style": {
+            "stroke": "#6366f1",
+            "strokeWidth": 2
+          }
+        },
+        {
+          "id": "edge-transform-dataset-orders_office_goods.csv-1775481436264-join-transform-dataset-orders_office_goods.csv-1775481436264-dataset-consolidated_customers.csv-1775481436262",
+          "source": "transform-dataset-orders_office_goods.csv-1775481436264",
+          "target": "join-transform-dataset-orders_office_goods.csv-1775481436264-dataset-consolidated_customers.csv-1775481436262",
+          "type": "default",
+          "animated": true,
+          "style": {
+            "stroke": "#6366f1",
+            "strokeWidth": 2
+          }
+        },
+        {
+          "id": "edge-dataset-consolidated_customers.csv-1775481436262-join-transform-dataset-orders_office_goods.csv-1775481436264-dataset-consolidated_customers.csv-1775481436262",
+          "source": "dataset-consolidated_customers.csv-1775481436262",
+          "target": "join-transform-dataset-orders_office_goods.csv-1775481436264-dataset-consolidated_customers.csv-1775481436262",
+          "type": "default",
+          "animated": true,
+          "style": {
+            "stroke": "#6366f1",
+            "strokeWidth": 2
+          }
+        },
+        {
+          "id": "edge-join-transform-dataset-orders_office_goods.csv-1775481436264-dataset-consolidated_customers.csv-1775481436262-union-join-transform-dataset-orders_bureau_transactional_system.csv-1775481436263-dataset-consolidated_customers.csv-1775481436262-join-transform-dataset-orders_office_goods.csv-1775481436264-dataset-consolidated_customers.csv-1775481436262",
+          "source": "join-transform-dataset-orders_office_goods.csv-1775481436264-dataset-consolidated_customers.csv-1775481436262",
+          "target": "union-join-transform-dataset-orders_bureau_transactional_system.csv-1775481436263-dataset-consolidated_customers.csv-1775481436262-join-transform-dataset-orders_office_goods.csv-1775481436264-dataset-consolidated_customers.csv-1775481436262",
+          "type": "default",
+          "animated": true,
+          "style": {
+            "stroke": "#dc2626",
+            "strokeWidth": 2
+          }
+        },
+        {
+          "id": "edge-join-transform-dataset-orders_bureau_transactional_system.csv-1775481436263-dataset-consolidated_customers.csv-1775481436262-union-join-transform-dataset-orders_bureau_transactional_system.csv-1775481436263-dataset-consolidated_customers.csv-1775481436262-join-transform-dataset-orders_office_goods.csv-1775481436264-dataset-consolidated_customers.csv-1775481436262",
+          "source": "join-transform-dataset-orders_bureau_transactional_system.csv-1775481436263-dataset-consolidated_customers.csv-1775481436262",
+          "target": "union-join-transform-dataset-orders_bureau_transactional_system.csv-1775481436263-dataset-consolidated_customers.csv-1775481436262-join-transform-dataset-orders_office_goods.csv-1775481436264-dataset-consolidated_customers.csv-1775481436262",
+          "type": "default",
+          "animated": true,
+          "style": {
+            "stroke": "#dc2626",
+            "strokeWidth": 2
+          }
+        }
+      ]
+    }
+  },
+  "outputs": [],
+  "deployState": null,
+  "transforms": [],
+  "activeBranch": "Main",
+  "savedAt": "2026-04-06T13:26:59.844Z"
+}
