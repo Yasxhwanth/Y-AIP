@@ -788,59 +788,328 @@ function NewObjectTypeWizard({ onSuccess, onCancel }: { onSuccess: () => void; o
 // Detail Panels
 // ─────────────────────────────────────────────────────────────────────────────
 function ObjectTypeDetail({ ot, onRefresh }: { ot: OntologyObjectType; onRefresh: () => void }) {
+    const [subTab, setSubTab] = useState<"Overview" | "Properties" | "Datasources" | "Security" | "Capabilities" | "Interfaces" | "Materializations" | "Automations" | "Usage" | "History">("Overview");
+    const [indexStatus, setIndexStatus] = useState<{ index_status: string; index_count: number; last_synced: string | null }>({ index_status: "pending", index_count: 0, last_synced: null });
+    const [preview, setPreview] = useState<{ columns: string[]; rows: Record<string, string>[]; total: number; file: string | null } | null>(null);
+    const [loadingPreview, setLoadingPreview] = useState(false);
+
+    // Poll indexing status every 2s while indexing
+    useEffect(() => {
+        const poll = async () => {
+            try {
+                const r = await fetch(`${API_BASE}/object-types/${ot.api_name}/index-status`);
+                if (r.ok) setIndexStatus(await r.json());
+            } catch { /* offline */ }
+        };
+        poll();
+        const id = setInterval(poll, 2000);
+        return () => clearInterval(id);
+    }, [ot.api_name]);
+
+    // Load preview when Datasources tab opens
+    useEffect(() => {
+        if (subTab !== "Datasources") return;
+        setLoadingPreview(true);
+        fetch(`${API_BASE}/object-types/${ot.api_name}/preview`)
+            .then(r => r.ok ? r.json() : null)
+            .then(d => setPreview(d))
+            .catch(() => setPreview(null))
+            .finally(() => setLoadingPreview(false));
+    }, [subTab, ot.api_name]);
+
+    const handleReindex = async () => {
+        await fetch(`${API_BASE}/object-types/${ot.api_name}/index`, { method: "POST" });
+        setIndexStatus(s => ({ ...s, index_status: "indexing", index_count: 0 }));
+    };
+
     const handleDelete = async () => {
         if (!confirm(`Delete Object Type '${ot.api_name}'? This is irreversible.`)) return;
         await fetch(`/api/ontology-admin/object-types/${ot.api_name}`, { method: "DELETE" });
         onRefresh();
     };
+
+    const isIndexing = indexStatus.index_status === "indexing";
+    const isActive = indexStatus.index_status === "active";
+
+    const subNavItems = ["Overview", "Properties", "Security", "Datasources", "Capabilities", "Object views", "Interfaces", "Materializations", "Automations", "Usage", "History"];
+
     return (
-        <div>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 24 }}>
-                <div>
-                    <h2 style={{ margin: 0, fontSize: 22, color: "#f9fafb" }}>{ot.display_name}</h2>
-                    <code style={{ color: "#60a5fa", fontSize: 13 }}>{ot.api_name}</code>
-                    <p style={{ color: "#9ca3af", fontSize: 13, marginTop: 8 }}>{ot.description}</p>
+        <div style={{ display: "flex", height: "100%" }}>
+            {/* ── Left sub-nav ── */}
+            <div style={{ width: 200, borderRight: "1px solid #1f2937", background: "#0d1117", padding: "16px 0", flexShrink: 0, overflowY: "auto" }}>
+                {/* Object type header in sub-nav */}
+                <div style={{ padding: "0 16px 16px", borderBottom: "1px solid #1f2937" }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 4 }}>
+                        <div style={{ width: 28, height: 28, background: "#1e3a5f", borderRadius: 6, display: "flex", alignItems: "center", justifyContent: "center" }}>
+                            <Database size={14} color="#60a5fa" />
+                        </div>
+                        <div>
+                            <div style={{ fontSize: 13, fontWeight: 600, color: "#f9fafb" }}>{ot.display_name}</div>
+                            <div style={{ fontSize: 11, color: isActive ? "#10b981" : isIndexing ? "#f59e0b" : "#6b7280" }}>
+                                {isActive ? `${indexStatus.index_count.toLocaleString()} objects` : isIndexing ? `Indexing… ${indexStatus.index_count}` : "0 objects"}
+                            </div>
+                        </div>
+                    </div>
                 </div>
-                <button onClick={handleDelete} style={{ background: "#7f1d1d", border: "1px solid #dc2626", color: "#fca5a5", borderRadius: 6, padding: "6px 12px", cursor: "pointer", fontSize: 12 }}>Delete</button>
-            </div>
-
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12, marginBottom: 20 }}>
-                <InfoCard label="Primary Key" value={ot.primary_key} />
-                <InfoCard label="Title Property" value={ot.title_property} />
-                <InfoCard label="Backing Source" value={ot.backing_source} />
-            </div>
-
-            {ot.implements?.length > 0 && (
-                <div style={{ marginBottom: 20 }}>
-                    <h3 style={{ color: "#9ca3af", fontSize: 12, textTransform: "uppercase", letterSpacing: 1, marginBottom: 8 }}>Implements Interfaces</h3>
-                    <div style={{ display: "flex", gap: 6 }}>{ot.implements.map(i => <Pill key={i} text={i} />)}</div>
-                </div>
-            )}
-
-            <h3 style={{ color: "#9ca3af", fontSize: 12, textTransform: "uppercase", letterSpacing: 1, marginBottom: 8 }}>Properties</h3>
-            <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
-                <thead>
-                    <tr style={{ borderBottom: "1px solid #1f2937" }}>
-                        {["API Name", "Display Name", "Data Type", "PK", "Required"].map(h => (
-                            <th key={h} style={{ textAlign: "left", padding: "8px 12px", color: "#6b7280", fontWeight: 600, fontSize: 11, textTransform: "uppercase" }}>{h}</th>
-                        ))}
-                    </tr>
-                </thead>
-                <tbody>
-                    {ot.properties?.map(p => (
-                        <tr key={p.api_name} style={{ borderBottom: "1px solid #111827" }}>
-                            <td style={{ padding: "8px 12px" }}><code style={{ color: "#60a5fa", fontSize: 12 }}>{p.api_name}</code></td>
-                            <td style={{ padding: "8px 12px", color: "#e5e7eb" }}>{p.display_name}</td>
-                            <td style={{ padding: "8px 12px" }}><Badge label={p.data_type} color="#10b981" /></td>
-                            <td style={{ padding: "8px 12px" }}>{p.is_primary_key ? "✅" : "—"}</td>
-                            <td style={{ padding: "8px 12px" }}>{p.is_required ? "✅" : "—"}</td>
-                        </tr>
+                <div style={{ padding: "8px 0" }}>
+                    {subNavItems.map(item => (
+                        <div key={item} onClick={() => setSubTab(item as any)}
+                            style={{
+                                padding: "7px 16px", cursor: "pointer", fontSize: 13, display: "flex", alignItems: "center", justifyContent: "space-between",
+                                background: subTab === item ? "rgba(96,165,250,0.12)" : "transparent",
+                                color: subTab === item ? "#93c5fd" : "#9ca3af",
+                                fontWeight: subTab === item ? 600 : 400, borderLeft: subTab === item ? "2px solid #3b82f6" : "2px solid transparent"
+                            }}>
+                            <span>{item}</span>
+                            {item === "Properties" && <span style={{ fontSize: 11, color: "#475569" }}>{ot.properties?.length ?? 0}</span>}
+                        </div>
                     ))}
-                </tbody>
-            </table>
+                </div>
+            </div>
+
+            {/* ── Main content ── */}
+            <div style={{ flex: 1, overflowY: "auto", background: "#0d1117" }}>
+
+                {/* ─ OVERVIEW TAB ─ */}
+                {subTab === "Overview" && (
+                    <div style={{ padding: 28 }}>
+                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 24 }}>
+                            <div>
+                                <h2 style={{ margin: 0, fontSize: 22, color: "#f9fafb" }}>{ot.display_name}</h2>
+                                <code style={{ color: "#60a5fa", fontSize: 13 }}>{ot.api_name}</code>
+                                <p style={{ color: "#9ca3af", fontSize: 13, marginTop: 8 }}>{ot.description}</p>
+                            </div>
+                            <button onClick={handleDelete} style={{ background: "#7f1d1d", border: "1px solid #dc2626", color: "#fca5a5", borderRadius: 6, padding: "6px 12px", cursor: "pointer", fontSize: 12 }}>Delete</button>
+                        </div>
+                        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12, marginBottom: 20 }}>
+                            <InfoCard label="Primary Key" value={ot.primary_key} />
+                            <InfoCard label="Title Property" value={ot.title_property} />
+                            <InfoCard label="Backing Source" value={ot.backing_source} />
+                        </div>
+                        {/* Indexing status banner */}
+                        <div style={{ background: isActive ? "#052e16" : isIndexing ? "#1c1407" : "#111827", border: `1px solid ${isActive ? "#10b981" : isIndexing ? "#f59e0b" : "#1f2937"}`, borderRadius: 8, padding: 14, marginBottom: 20, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                            <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                                {isIndexing && <div style={{ width: 16, height: 16, border: "2px solid #f59e0b", borderTopColor: "transparent", borderRadius: "50%", animation: "spin 0.8s linear infinite", flexShrink: 0 }} />}
+                                {isActive && <div style={{ color: "#10b981", fontWeight: 700, fontSize: 16 }}>✓</div>}
+                                {!isIndexing && !isActive && <div style={{ width: 10, height: 10, borderRadius: "50%", background: "#374151", flexShrink: 0 }} />}
+                                <div>
+                                    <div style={{ fontSize: 13, fontWeight: 600, color: isActive ? "#10b981" : isIndexing ? "#f59e0b" : "#6b7280" }}>
+                                        {isActive ? `Active — ${indexStatus.index_count.toLocaleString()} objects indexed` : isIndexing ? `Indexing… ${indexStatus.index_count.toLocaleString()} objects indexed so far` : "Not indexed"}
+                                    </div>
+                                    {indexStatus.last_synced && <div style={{ fontSize: 11, color: "#6b7280" }}>Last synced {new Date(indexStatus.last_synced).toLocaleString()}</div>}
+                                </div>
+                            </div>
+                            <button onClick={handleReindex} style={{ background: "none", border: "1px solid #374151", color: "#9ca3af", borderRadius: 5, padding: "5px 12px", cursor: "pointer", fontSize: 12 }}>↻ Re-index</button>
+                        </div>
+                    </div>
+                )}
+
+                {/* ─ PROPERTIES TAB ─ */}
+                {subTab === "Properties" && (
+                    <div style={{ padding: 28 }}>
+                        <h3 style={{ color: "#f9fafb", fontSize: 16, marginBottom: 16 }}>Properties <span style={{ color: "#475569", fontSize: 13, fontWeight: 400 }}>({ot.properties?.length ?? 0})</span></h3>
+                        <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
+                            <thead>
+                                <tr style={{ borderBottom: "1px solid #1f2937" }}>
+                                    {["API Name", "Display Name", "Data Type", "PK", "Required"].map(h => (
+                                        <th key={h} style={{ textAlign: "left", padding: "8px 12px", color: "#6b7280", fontWeight: 600, fontSize: 11, textTransform: "uppercase" }}>{h}</th>
+                                    ))}
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {ot.properties?.map(p => (
+                                    <tr key={p.api_name} style={{ borderBottom: "1px solid #111827" }}>
+                                        <td style={{ padding: "8px 12px" }}><code style={{ color: "#60a5fa", fontSize: 12 }}>{p.api_name}</code></td>
+                                        <td style={{ padding: "8px 12px", color: "#e5e7eb" }}>{p.display_name}</td>
+                                        <td style={{ padding: "8px 12px" }}><Badge label={p.data_type} color="#10b981" /></td>
+                                        <td style={{ padding: "8px 12px" }}>{p.is_primary_key ? "✅" : "—"}</td>
+                                        <td style={{ padding: "8px 12px" }}>{p.is_required ? "✅" : "—"}</td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    </div>
+                )}
+
+                {/* ─ DATASOURCES TAB ─ */}
+                {subTab === "Datasources" && (
+                    <div style={{ padding: 28 }}>
+                        {/* Object Storage V2 card */}
+                        <div style={{ border: "1px solid #1f2937", borderRadius: 10, marginBottom: 20, overflow: "hidden" }}>
+                            <div style={{ padding: "14px 20px", display: "flex", alignItems: "center", justifyContent: "space-between", borderBottom: "1px solid #1f2937", background: "#111827" }}>
+                                <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                                    <div style={{ width: 28, height: 28, background: "#1e3a5f", borderRadius: 6, display: "flex", alignItems: "center", justifyContent: "center" }}>
+                                        <Database size={14} color="#60a5fa" />
+                                    </div>
+                                    <div>
+                                        <div style={{ fontSize: 14, fontWeight: 600, color: "#f9fafb" }}>Object Storage V2</div>
+                                        <div style={{ fontSize: 11, color: "#6b7280" }}>The backend service that stores and serves information about objects</div>
+                                    </div>
+                                </div>
+                                <ChevronDown size={14} color="#6b7280" />
+                            </div>
+                            <div style={{ padding: "14px 20px", background: "#0d1117", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                                <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                                    <div style={{ width: 24, height: 24, background: "#1e3a5f", borderRadius: 5, display: "flex", alignItems: "center", justifyContent: "center" }}><Database size={12} color="#60a5fa" /></div>
+                                    <div>
+                                        <div style={{ fontSize: 13, fontWeight: 600, color: "#e5e7eb" }}>Object Storage V2</div>
+                                        <div style={{ fontSize: 11, color: "#6b7280" }}>Default object data store</div>
+                                    </div>
+                                </div>
+                                <div style={{ display: "flex", alignItems: "center", gap: 24, fontSize: 12, color: "#9ca3af" }}>
+                                    <span>Data: <span style={{ color: "#10b981" }}>{indexStatus.last_synced ? `${Math.round((Date.now() - new Date(indexStatus.last_synced).getTime()) / 60000)} minutes ago` : "never"}</span></span>
+                                    <span>Schema: <span style={{ color: "#10b981" }}>Up to date</span></span>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Live pipeline diagram */}
+                        <div style={{ border: "1px solid #1f2937", borderRadius: 10, marginBottom: 20, overflow: "hidden" }}>
+                            <div style={{ padding: "14px 20px", background: "#111827", borderBottom: "1px solid #1f2937", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                                <div>
+                                    <div style={{ fontSize: 14, fontWeight: 600, color: "#f9fafb" }}>Live pipeline</div>
+                                    <div style={{ fontSize: 11, color: "#6b7280", marginTop: 2 }}>Append the latest changes made to any backing datasources into relevant stores.</div>
+                                </div>
+                                <button onClick={handleReindex} style={{ background: "none", border: "1px solid #374151", color: "#9ca3af", borderRadius: 5, padding: "5px 12px", cursor: "pointer", fontSize: 12, display: "flex", alignItems: "center", gap: 6 }}>
+                                    ↻ Re-sync
+                                </button>
+                            </div>
+                            <div style={{ padding: "24px 20px", background: "#0d1117" }}>
+                                {/* Pipeline stages */}
+                                <div style={{ display: "flex", alignItems: "center", gap: 0, overflowX: "auto" }}>
+                                    {[
+                                        { label: ot.backing_source ?? "all_orders", sublabel: "Source dataset", color: "#3b82f6", status: "active" },
+                                        { label: "Changelog", sublabel: "Captures row changes", color: "#10b981", status: isActive ? "active" : isIndexing ? "running" : "pending" },
+                                        { label: "Merge changes", sublabel: "Deduplicates events", color: "#10b981", status: isActive ? "active" : isIndexing ? "running" : "pending" },
+                                        { label: "Indexing", sublabel: `${indexStatus.index_count.toLocaleString()} rows`, color: isActive ? "#10b981" : isIndexing ? "#f59e0b" : "#374151", status: isActive ? "active" : isIndexing ? "running" : "pending" },
+                                        { label: "Object Storage V2", sublabel: "Committed store", color: isActive ? "#10b981" : "#374151", status: isActive ? "active" : "pending" }
+                                    ].map((stage, i, arr) => (
+                                        <div key={stage.label} style={{ display: "flex", alignItems: "center" }}>
+                                            <div style={{ textAlign: "center", minWidth: 120 }}>
+                                                <div style={{ width: 36, height: 36, borderRadius: 8, background: stage.status === "active" ? "#052e16" : stage.status === "running" ? "#1c1407" : "#111827", border: `1.5px solid ${stage.color}`, display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 6px", position: "relative" }}>
+                                                    {stage.status === "running" && (
+                                                        <div style={{ width: 14, height: 14, border: `2px solid ${stage.color}`, borderTopColor: "transparent", borderRadius: "50%", animation: "spin 0.8s linear infinite" }} />
+                                                    )}
+                                                    {stage.status === "active" && <div style={{ color: stage.color, fontSize: 14, fontWeight: 700 }}>✓</div>}
+                                                    {stage.status === "pending" && <div style={{ width: 8, height: 8, borderRadius: "50%", background: "#374151" }} />}
+                                                </div>
+                                                <div style={{ fontSize: 11, fontWeight: 600, color: stage.status !== "pending" ? "#e5e7eb" : "#4b5563" }}>{stage.label}</div>
+                                                <div style={{ fontSize: 10, color: "#4b5563", marginTop: 2 }}>{stage.sublabel}</div>
+                                            </div>
+                                            {i < arr.length - 1 && (
+                                                <div style={{ height: 2, width: 40, background: stage.status === "active" ? "#10b981" : "#1f2937", flexShrink: 0 }} />
+                                            )}
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Monitor health strip */}
+                        <div style={{ border: "1px solid #1f2937", borderRadius: 10, padding: "14px 20px", marginBottom: 20, background: "#111827", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                                <div style={{ color: "#60a5fa", fontSize: 18 }}>⚡</div>
+                                <div>
+                                    <div style={{ fontSize: 13, fontWeight: 600, color: "#e5e7eb" }}>Monitor the health of this object type</div>
+                                    <div style={{ fontSize: 11, color: "#6b7280" }}>Configure alerts for failing or slow indexing jobs</div>
+                                </div>
+                            </div>
+                            <button style={{ background: "none", border: "1px solid #374151", color: "#9ca3af", borderRadius: 5, padding: "6px 14px", cursor: "pointer", fontSize: 12 }}>Monitor this object type ↗</button>
+                        </div>
+
+                        {/* Indexing Metadata */}
+                        <div style={{ border: "1px solid #1f2937", borderRadius: 10, marginBottom: 24, overflow: "hidden" }}>
+                            <div style={{ padding: "14px 20px", background: "#111827", borderBottom: "1px solid #1f2937", display: "flex", alignItems: "center", gap: 8 }}>
+                                <Settings size={14} color="#9ca3af" />
+                                <span style={{ fontSize: 14, fontWeight: 600, color: "#f9fafb" }}>Indexing Metadata</span>
+                            </div>
+                            <div style={{ padding: "16px 20px", background: "#0d1117" }}>
+                                <p style={{ fontSize: 12, color: "#6b7280", marginBottom: 14 }}>What should the target backing store be for this object type?</p>
+                                <div style={{ display: "flex", gap: 12 }}>
+                                    <label style={{ display: "flex", alignItems: "center", gap: 10, border: "1px solid #1f2937", borderRadius: 8, padding: "10px 16px", cursor: "pointer", flex: 1 }}>
+                                        <input type="radio" name="storage" defaultChecked={false} />
+                                        <span style={{ fontSize: 13, color: "#9ca3af" }}>Object Storage v1</span>
+                                    </label>
+                                    <label style={{ display: "flex", alignItems: "center", gap: 10, border: "1.5px solid #3b82f6", borderRadius: 8, padding: "10px 16px", cursor: "pointer", flex: 1, background: "#0c1a2e" }}>
+                                        <input type="radio" name="storage" defaultChecked={true} />
+                                        <span style={{ fontSize: 13, color: "#e5e7eb", fontWeight: 600 }}>Object Storage v2</span>
+                                        <span style={{ background: "#1e3a5f", color: "#60a5fa", fontSize: 10, borderRadius: 4, padding: "2px 6px", marginLeft: "auto" }}>Recommended</span>
+                                    </label>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* ── DATA PREVIEW TABLE ── */}
+                        <div style={{ border: "1px solid #1f2937", borderRadius: 10, overflow: "hidden" }}>
+                            <div style={{ padding: "12px 16px", background: "#111827", borderBottom: "1px solid #1f2937", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                                    <div style={{ width: 8, height: 8, borderRadius: "50%", background: "#3b82f6" }} />
+                                    <span style={{ fontSize: 13, fontWeight: 600, color: "#e5e7eb" }}>{ot.display_name}</span>
+                                    <ChevronDown size={12} color="#6b7280" />
+                                </div>
+                                <div style={{ display: "flex", gap: 8 }}>
+                                    <button style={{ background: "none", border: "1px solid #374151", color: "#9ca3af", borderRadius: 4, padding: "4px 10px", cursor: "pointer", fontSize: 12 }}>Preview objects</button>
+                                    <button style={{ background: "none", border: "1px solid #374151", color: "#9ca3af", borderRadius: 4, padding: "4px 10px", cursor: "pointer", fontSize: 12, display: "flex", alignItems: "center", gap: 4 }}>Preview table <ChevronDown size={11} /></button>
+                                </div>
+                            </div>
+                            {/* Info bar */}
+                            <div style={{ padding: "8px 16px", background: "#0c1a2e", borderBottom: "1px solid #1f2937", display: "flex", alignItems: "center", gap: 6 }}>
+                                <div style={{ width: 16, height: 16, borderRadius: "50%", background: "#1d4ed8", color: "white", fontSize: 10, display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 700 }}>i</div>
+                                <span style={{ fontSize: 11, color: "#93c5fd" }}>Edits are not included in this preview</span>
+                            </div>
+                            {loadingPreview ? (
+                                <div style={{ padding: "40px 0", textAlign: "center", color: "#6b7280", fontSize: 13 }}>Loading data preview…</div>
+                            ) : preview && preview.columns.length > 0 ? (
+                                <div style={{ overflowX: "auto" }}>
+                                    <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
+                                        <thead>
+                                            <tr style={{ background: "#111827", borderBottom: "1px solid #1f2937" }}>
+                                                <th style={{ padding: "6px 10px", color: "#6b7280", textAlign: "left", width: 36, fontWeight: 400 }}>#</th>
+                                                {preview.columns.map(col => (
+                                                    <th key={col} style={{ padding: "6px 10px", color: "#9ca3af", textAlign: "left", fontWeight: 600, fontSize: 11, letterSpacing: 0.3, whiteSpace: "nowrap" }}>
+                                                        <div>{col}</div>
+                                                        <div style={{ color: "#4b5563", fontSize: 10, fontWeight: 400 }}>String</div>
+                                                    </th>
+                                                ))}
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {preview.rows.map((row, i) => (
+                                                <tr key={i} style={{ borderBottom: "1px solid #111827", background: i % 2 === 0 ? "#0d1117" : "#0a0f1a" }}>
+                                                    <td style={{ padding: "5px 10px", color: "#374151", textAlign: "center" }}>{i + 1}</td>
+                                                    {preview.columns.map(col => (
+                                                        <td key={col} style={{ padding: "5px 10px", color: "#9ca3af", whiteSpace: "nowrap", maxWidth: 180, overflow: "hidden", textOverflow: "ellipsis" }}>{row[col] ?? ""}</td>
+                                                    ))}
+                                                </tr>
+                                            ))}
+                                        </tbody>
+                                    </table>
+                                    <div style={{ padding: "8px 16px", background: "#0d1117", borderTop: "1px solid #1f2937", fontSize: 11, color: "#4b5563" }}>
+                                        Showing {preview.rows.length} of {preview.total?.toLocaleString()} rows • {preview.file}
+                                    </div>
+                                </div>
+                            ) : (
+                                <div style={{ padding: "40px 0", textAlign: "center", color: "#4b5563", fontSize: 13 }}>No data preview available for this object type.</div>
+                            )}
+                        </div>
+                    </div>
+                )}
+
+                {/* ─ PLACEHOLDER TABS ─ */}
+                {!["Overview", "Properties", "Datasources"].includes(subTab) && (
+                    <div style={{ padding: 40, textAlign: "center", color: "#4b5563", fontSize: 14 }}>
+                        <div style={{ fontSize: 32, marginBottom: 12 }}>🚧</div>
+                        <div style={{ fontWeight: 600, color: "#6b7280", marginBottom: 6 }}>{subTab}</div>
+                        <div>This section is coming soon.</div>
+                    </div>
+                )}
+            </div>
+
+            <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
         </div>
     );
 }
+
 
 function ActionTypeDetail({ action }: { action: OntologyActionType }) {
     const hitlColor = action.hitl_level === 1 ? "#10b981" : action.hitl_level === 2 ? "#f59e0b" : "#ef4444";

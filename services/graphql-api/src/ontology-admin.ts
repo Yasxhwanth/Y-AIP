@@ -130,8 +130,87 @@ export async function registerOntologyAdminRoutes(app: FastifyInstance, driver: 
                 `, { ot: api_name, iface: ifaceApiName });
             }
 
+            // Set initial index status on the new node
+            await session.run(`MATCH (o:OntologyObjectType {api_name: $api_name}) SET o.index_status = 'indexing', o.index_count = 0, o.last_synced = null`, { api_name });
+            // Fire-and-forget — schedule after current tick so response is sent first
+            setImmediate(() => triggerIndexing(api_name, backing_source ?? "connector-postgres", driver).catch(console.error));
             return { status: "created", api_name };
         } finally { await session.close(); }
+    });
+
+    // POST /api/ontology/object-types/:apiName/index  — manually re-trigger
+    app.post("/api/ontology/object-types/:apiName/index", async (req: any, reply) => {
+        const { apiName } = req.params;
+        const sess = driver.session();
+        try {
+            const r = await sess.run(`MATCH (o:OntologyObjectType {api_name: $apiName}) RETURN o.backing_source as bs`, { apiName });
+            if (!r.records[0]) return reply.status(404).send({ error: "Object type not found" });
+            await sess.run(`MATCH (o:OntologyObjectType {api_name: $apiName}) SET o.index_status = 'indexing', o.index_count = 0`, { apiName });
+            triggerIndexing(apiName, r.records[0].get("bs") ?? "connector-postgres", driver).catch(console.error);
+            return { status: "indexing_started", api_name: apiName };
+        } finally { await sess.close(); }
+    });
+
+    // GET /api/ontology/object-types/:apiName/index-status  — poll status
+    app.get("/api/ontology/object-types/:apiName/index-status", async (req: any, reply) => {
+        const { apiName } = req.params;
+        const sess = driver.session();
+        try {
+            const r = await sess.run(
+                `MATCH (o:OntologyObjectType {api_name: $apiName}) RETURN o.index_status as status, o.index_count as count, o.last_synced as last_synced`,
+                { apiName }
+            );
+            if (!r.records[0]) return reply.status(404).send({ error: "Not found" });
+            const rec = r.records[0];
+            return {
+                api_name: apiName,
+                index_status: rec.get("status") ?? "pending",
+                index_count: typeof rec.get("count")?.toNumber === "function" ? rec.get("count").toNumber() : (rec.get("count") ?? 0),
+                last_synced: rec.get("last_synced") ?? null
+            };
+        } finally { await sess.close(); }
+    });
+
+
+
+    // GET /api/ontology/object-types/:apiName/preview
+    // Returns up to 200 rows from the backing dataset for the data preview table
+    app.get("/api/ontology/object-types/:apiName/preview", async (req: any, reply) => {
+        const { apiName } = req.params;
+        const sess = driver.session();
+        let backingSource = "";
+        try {
+            const r = await sess.run(`MATCH (o:OntologyObjectType {api_name: $apiName}) RETURN o.backing_source as bs`, { apiName });
+            if (!r.records[0]) return reply.status(404).send({ error: "Not found" });
+            backingSource = r.records[0].get("bs") ?? "";
+        } finally { await sess.close(); }
+
+        // Try to read a matching CSV file from the data directory
+        try {
+            const dataDir = path.resolve(process.cwd(), "../../data");
+            const allFiles = fs.readdirSync(dataDir).filter(f => f.endsWith(".csv"));
+            // Match by backing source name or fallback to any orders CSV
+            const match = allFiles.find(f => f.toLowerCase().includes(backingSource.replace(/[^a-z0-9]/gi, "_").toLowerCase()))
+                ?? allFiles.find(f => f.includes("order"))
+                ?? allFiles[0];
+            if (!match) return { columns: [], rows: [] };
+
+            const content = fs.readFileSync(path.join(dataDir, match), "utf-8");
+            const lines = content.split("\n").map(l => l.trim()).filter(Boolean);
+            if (lines.length < 2) return { columns: [], rows: [] };
+
+            const columns = lines[0].split(",").map(c => c.trim().replace(/^"|"$/g, ""));
+            const rows = lines.slice(1, 201).map(line => {
+                const vals = line.split(",").map(v => v.trim().replace(/^"|"$/g, ""));
+                const row: Record<string, string> = {};
+                columns.forEach((col, i) => { row[col] = vals[i] ?? ""; });
+                return row;
+            });
+            return { columns, rows, total: lines.length - 1, file: match };
+        } catch (e) {
+            console.error("Preview read error:", e);
+            return { columns: [], rows: [], total: 0, file: null };
+        }
     });
 
     // PATCH /api/ontology/object-types/:apiName
@@ -1127,4 +1206,55 @@ export async function registerOntologyAdminRoutes(app: FastifyInstance, driver: 
         }
     });
 
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Background indexing simulation
+// Mimics a Foundry Phonograph sync job: reads the backing dataset, counts rows,
+// and increments index_count in Neo4j in batches until complete.
+// ─────────────────────────────────────────────────────────────────────────────
+async function triggerIndexing(apiName: string, backingSource: string, driver: Driver) {
+    // 1. Estimate the dataset size from the backing source
+    // In production this would be a real Spark rowcount query.
+    // Here we simulate by checking if any data files exist or use a fixed size.
+    let totalRows = 850; // default simulated dataset size
+    try {
+        const dataDir = path.resolve(process.cwd(), "../../data");
+        const csvFiles = fs.readdirSync(dataDir).filter(f => f.endsWith(".csv") && f.includes("order"));
+        if (csvFiles.length > 0) {
+            const content = fs.readFileSync(path.join(dataDir, csvFiles[0]), "utf-8");
+            // Count non-empty lines minus header
+            totalRows = Math.max(1, content.split("\n").filter(l => l.trim()).length - 1);
+        }
+    } catch { /* use default */ }
+
+    // 2. Increment index_count in batches of ~50 every 200ms
+    const batchSize = Math.max(1, Math.ceil(totalRows / 20)); // ~20 ticks
+    let indexed = 0;
+
+    const sess = driver.session();
+    try {
+        while (indexed < totalRows) {
+            indexed = Math.min(indexed + batchSize, totalRows);
+            await sess.run(
+                `MATCH (o:OntologyObjectType {api_name: $apiName}) SET o.index_count = $count`,
+                { apiName, count: indexed }
+            );
+            await new Promise(r => setTimeout(r, 200));
+        }
+
+        // 3. Mark as active
+        await sess.run(
+            `MATCH (o:OntologyObjectType {api_name: $apiName}) SET o.index_status = 'active', o.index_count = $count, o.last_synced = $ts`,
+            { apiName, count: totalRows, ts: new Date().toISOString() }
+        );
+    } catch (e) {
+        console.error(`Indexing failed for ${apiName}:`, e);
+        await sess.run(
+            `MATCH (o:OntologyObjectType {api_name: $apiName}) SET o.index_status = 'error'`,
+            { apiName }
+        ).catch(() => { });
+    } finally {
+        await sess.close();
+    }
 }
