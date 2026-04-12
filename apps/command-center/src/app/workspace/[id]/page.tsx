@@ -165,7 +165,7 @@ export default function ProjectWorkspace() {
 
             <div className="h-10 bg-[#f4f6f8] border-b border-gray-300 flex items-center px-4 text-[13px] text-[#5c7080] shrink-0">
                 <Folder className="w-4 h-4 mr-2 text-gray-400" />
-                <span className="font-semibold text-gray-800 hover:text-blue-600 cursor-pointer">{project?.space || "Ontologize"}</span>
+                <span className="font-semibold text-gray-800 hover:text-blue-600 cursor-pointer">{project?.space || "Y-AIP"}</span>
                 <ChevronRight className="w-3.5 h-3.5 mx-1 text-gray-400" />
                 <span className="font-semibold flex items-center gap-2 text-gray-800 bg-white px-2 py-0.5 rounded shadow-sm border border-gray-200">
                     <Folder className="w-3.5 h-3.5 text-gray-400" />
@@ -425,11 +425,11 @@ export default function ProjectWorkspace() {
                                 </div>
                                 <div className="flex text-[12px] items-start">
                                     <div className="w-[100px] text-gray-500 font-medium">Location</div>
-                                    <div className="flex-1 text-gray-800">/{project?.space || "Ontologize Public"}/ <br /> [{project?.name || ""}] <span className="text-blue-600 cursor-pointer hover:underline text-[11px] ml-1">Copy</span></div>
+                                    <div className="flex-1 text-gray-800">/{project?.space || "Y-AIP Public"}/ <br /> [{project?.name || ""}] <span className="text-blue-600 cursor-pointer hover:underline text-[11px] ml-1">Copy</span></div>
                                 </div>
                                 <div className="flex text-[12px] items-start">
                                     <div className="w-[100px] text-gray-500 font-medium">Space</div>
-                                    <div className="flex-1 text-gray-800">{project?.space || "Ontologize Public"}</div>
+                                    <div className="flex-1 text-gray-800">{project?.space || "Y-AIP Public"}</div>
                                 </div>
                                 <div className="flex text-[12px] items-start">
                                     <div className="w-[100px] text-gray-500 font-medium">Tags</div>
@@ -470,7 +470,7 @@ export default function ProjectWorkspace() {
             <CreatePipelineModal
                 isOpen={isCreatePipelineModalOpen}
                 onClose={() => setIsCreatePipelineModalOpen(false)}
-                locationPath={project ? `/${project.space || "Ontologize Public"}/${project.name}` : ""}
+                locationPath={project ? `/${project.space || "Y-AIP Public"}/${project.name}` : ""}
                 projectId={projectId}
                 folderId={project?.id || projectId}
             />

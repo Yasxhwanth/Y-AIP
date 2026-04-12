@@ -232,7 +232,7 @@ function applyTransformsToPreview(
     return { columns, rows };
 }
 
-// Palantir speedrun: Clean Bureau/Office Goods ⟕ consolidated_customers preset
+// Y-AIP Pipeline preset: Clean Bureau/Office Goods ⟕ consolidated_customers preset
 // Automatically sets the correct join condition and hides redundant ID columns
 function applyJoinPreset(cfg: JoinConfig, leftLabel: string, rightLabel: string): JoinConfig {
     const L = leftLabel.toLowerCase();
@@ -2916,8 +2916,8 @@ export default function PipelineBuilderWorkspace() {
                                             </div>
                                         </div>
                                         <div className="flex flex-col border-t border-gray-100 p-2 gap-1 pb-3">
-                                            <ActionRow icon={<Download className="w-4 h-4 text-gray-600" />} title="Add Foundry data" desc="Recommended if you have already ingested data into Foundry." onClick={() => setIsAddDataOpen(true)} highlight />
-                                            <ActionRow icon={<Database className="w-4 h-4 text-gray-600" />} title="Add data to Foundry" desc="Import data from outside Foundry and start using it now" onClick={() => { }} />
+                                            <ActionRow icon={<Download className="w-4 h-4 text-gray-600" />} title="Add Y-AIP data" desc="Recommended if you have already ingested data into Y-AIP." onClick={() => setIsAddDataOpen(true)} highlight />
+                                            <ActionRow icon={<Database className="w-4 h-4 text-gray-600" />} title="Add external data" desc="Import data from outside databases and start using it now" onClick={() => { }} />
                                             <ActionRow icon={<UploadCloud className="w-4 h-4 text-gray-600" />} title="Upload from your computer" desc="Recommended if you have sample data available locally." onClick={() => setIsUploadOpen(true)} />
                                         </div>
                                     </div>
@@ -3526,7 +3526,7 @@ export default function PipelineBuilderWorkspace() {
                             </div>
                         </div>
                         <div className="px-5 py-3 border-b border-gray-200 bg-gray-50 text-[12px] text-gray-500">
-                            Select the <strong>right table</strong> on the graph or in the list below, then press <strong>Start</strong> (Palantir: Clean Bureau → Join → consolidated_customers → Start).
+                            Select the <strong>right table</strong> on the graph or in the list below, then press <strong>Start</strong> (Example: Clean Bureau → Join → consolidated_customers → Start).
                         </div>
                         <div className="flex-1 overflow-y-auto py-2">
                             {nodes.filter(n => n.id !== joinPickerNodeId && (n.type === "datasetNode" || n.type === "transformNode")).map(n => (

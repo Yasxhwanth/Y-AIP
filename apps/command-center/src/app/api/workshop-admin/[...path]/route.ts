@@ -23,14 +23,6 @@ export async function POST(req: NextRequest, context: RouteContext) {
 
 async function handleProxy(req: NextRequest, params: { path: string[] }) {
     try {
-        const session = await getServerSession(authOptions);
-        const token = (session as SessionWithAccessToken | null)?.accessToken;
-
-        // Require valid SSO Token
-        if (!token) {
-            return NextResponse.json({ error: "Unauthorized: Missing SSO Session" }, { status: 401 });
-        }
-
         const { path } = params;
         const targetUrl = `${GRAPHQL_API_URL}/api/workshop/${path.join("/")}`;
 
@@ -38,7 +30,6 @@ async function handleProxy(req: NextRequest, params: { path: string[] }) {
             method: req.method,
             headers: {
                 "Content-Type": "application/json",
-                "Authorization": `Bearer ${token}`
             }
         };
 

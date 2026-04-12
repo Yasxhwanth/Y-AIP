@@ -1,14 +1,14 @@
 /**
- * ontology-admin.ts — 1:1 Palantir Ontology Registry API
+ * ontology-admin.ts — 1:1 Y-AIP Ontology Registry API
  *
- * 12 REST endpoints mirroring the Palantir Foundry Ontology Manager:
+ * 12 REST endpoints mirroring the Y-AIP Ontology Manager:
  *   Object Types: GET list, POST create, GET single, PATCH update, DELETE
  *   Link Types:   GET list, POST create
  *   Action Types: GET list, POST create, GET single, POST apply (execute)
  *   Interfaces:   GET list, POST create
  */
 import { FastifyInstance } from "fastify";
-import { Driver } from "neo4j-driver";
+import { int, Driver } from "neo4j-driver";
 import fs from "fs";
 import path from "path";
 import { v4 as uuidv4 } from "uuid";
@@ -17,12 +17,259 @@ import { pipeline } from "stream/promises";
 export async function registerOntologyAdminRoutes(app: FastifyInstance, driver: Driver) {
 
     // ════════════════════════════════════════════════════════════════════════════
+    // DATASETS — Dynamic filesystem-based (reads real CSVs from workspace folders)
+    // ════════════════════════════════════════════════════════════════════════════
+
+    const DATA_ROOT = path.resolve(process.cwd(), "..", "..", "data");
+    const WORKSPACES_ROOT = path.join(DATA_ROOT, "workspaces");
+
+    /** Infer a column type from a sample of string values */
+    function inferType(samples: string[]): string {
+        const vals = samples.filter(v => v.trim() !== "");
+        if (vals.length === 0) return "string";
+        const numberCount = vals.filter(v => !isNaN(Number(v))).length;
+        if (numberCount / vals.length > 0.8) {
+            const intCount = vals.filter(v => Number.isInteger(Number(v))).length;
+            return intCount / vals.length > 0.8 ? "integer" : "double";
+        }
+        const dateCount = vals.filter(v => !isNaN(Date.parse(v))).length;
+        if (dateCount / vals.length > 0.8) return "date";
+        return "string";
+    }
+
+    /** Parse a CSV first row for headers, plus sample rows for type inference */
+    function parseCsvMeta(content: string, maxRows = 200): {
+        columns: { name: string; type: string }[];
+        rows: Record<string, string>[];
+        total: number;
+    } {
+        const lines = content.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
+        if (lines.length < 1) return { columns: [], rows: [], total: 0 };
+
+        // Parse a single line respecting quoted fields
+        const parseLine = (line: string): string[] => {
+            const result: string[] = [];
+            let cur = "";
+            let inQuote = false;
+            for (let i = 0; i < line.length; i++) {
+                const ch = line[i];
+                if (ch === '"') { inQuote = !inQuote; continue; }
+                if (ch === "," && !inQuote) { result.push(cur); cur = ""; continue; }
+                cur += ch;
+            }
+            result.push(cur);
+            return result;
+        };
+
+        const headers = parseLine(lines[0]);
+        const dataLines = lines.slice(1);
+        const total = dataLines.length;
+        const samples = dataLines.slice(0, 20);
+        const columns = headers.map((h, idx) => ({
+            name: h.trim(),
+            type: inferType(samples.map(l => parseLine(l)[idx] ?? ""))
+        }));
+
+        const rows = dataLines.slice(0, maxRows).map(line => {
+            const vals = parseLine(line);
+            const row: Record<string, string> = {};
+            headers.forEach((h, i) => { row[h.trim()] = (vals[i] ?? "").trim(); });
+            return row;
+        });
+
+        return { columns, rows, total };
+    }
+
+    /** Recursively convert Neo4j Integer / Date objects to plain JS values so JSON.stringify works */
+    function serializeNeo4j(val: unknown): unknown {
+        if (val === null || val === undefined) return val;
+        // Neo4j Integer — has low/high fields and toNumber()
+        if (typeof (val as any)?.toNumber === "function") return (val as any).toNumber();
+        if (Array.isArray(val)) return val.map(serializeNeo4j);
+        if (typeof val === "object") {
+            const out: Record<string, unknown> = {};
+            for (const [k, v] of Object.entries(val as Record<string, unknown>)) {
+                out[k] = serializeNeo4j(v);
+            }
+            return out;
+        }
+        return val;
+    }
+
+    /** Find a project's folder path from projects.json or Neo4j */
+    async function getProjectFolderPath(projectId: string): Promise<string | null> {
+        // 1. Try Neo4j
+        const sess = driver.session();
+        try {
+            const r = await sess.run(
+                `MATCH (p:OntologyProject {id: $id}) RETURN p.folder_path as fp`,
+                { id: projectId }
+            );
+            if (r.records[0]) {
+                const fp = r.records[0].get("fp");
+                if (fp && fs.existsSync(fp)) return fp;
+            }
+        } catch { /* Neo4j offline */ } finally { await sess.close(); }
+
+        // 2. Fall back to projects.json
+        try {
+            const projectsPath = path.join(DATA_ROOT, "projects.json");
+            if (fs.existsSync(projectsPath)) {
+                const projects = JSON.parse(fs.readFileSync(projectsPath, "utf-8")) as Record<string, unknown>[];
+                const p = projects.find(pr => pr["id"] === projectId);
+                if (p && typeof p["folder_path"] === "string" && fs.existsSync(p["folder_path"] as string)) {
+                    return p["folder_path"] as string;
+                }
+            }
+        } catch { /* ignore */ }
+
+        return null;
+    }
+
+    /** List all CSV files in a given folder */
+    function listCsvFiles(folderPath: string): { id: string; name: string; path: string; absPath: string }[] {
+        try {
+            return fs.readdirSync(folderPath)
+                .filter(f => f.toLowerCase().endsWith(".csv"))
+                .map(f => {
+                    const nameWithoutExt = f.replace(/\.csv$/i, "");
+                    return {
+                        id: nameWithoutExt,
+                        name: nameWithoutExt,
+                        path: `/workspace/${path.basename(folderPath)}/${f}`,
+                        absPath: path.join(folderPath, f)
+                    };
+                });
+        } catch { return []; }
+    }
+
+    /** Resolve a dataset file given an id and optional projectId */
+    async function resolveDatasetFile(id: string, projectId?: string): Promise<string | null> {
+        // 1. Scoped to a project workspace
+        if (projectId) {
+            const folderPath = await getProjectFolderPath(projectId);
+            if (folderPath) {
+                const candidate = path.join(folderPath, `${id}.csv`);
+                if (fs.existsSync(candidate)) return candidate;
+                // try matching by prefix
+                const files = listCsvFiles(folderPath);
+                const match = files.find(f => f.id === id || f.name === id);
+                if (match) return match.absPath;
+            }
+        }
+
+        // 2. Search all workspace folders
+        if (fs.existsSync(WORKSPACES_ROOT)) {
+            for (const ws of fs.readdirSync(WORKSPACES_ROOT)) {
+                const candidate = path.join(WORKSPACES_ROOT, ws, `${id}.csv`);
+                if (fs.existsSync(candidate)) return candidate;
+            }
+        }
+
+        return null;
+    }
+
+    // ── GET /api/ontology-admin/datasets ─────────────────────────────────────
+    // List all CSV files across all workspace folders (for the ontology wizard)
+    app.get("/api/ontology-admin/datasets", async (req: any, _reply) => {
+        const projectId = req.query?.projectId as string | undefined;
+
+        if (projectId) {
+            const folderPath = await getProjectFolderPath(projectId);
+            if (folderPath) return listCsvFiles(folderPath).map(f => ({ id: f.id, name: f.name, path: f.path }));
+        }
+
+        // Return all datasets across all workspace folders
+        const results: { id: string; name: string; path: string }[] = [];
+        if (fs.existsSync(WORKSPACES_ROOT)) {
+            for (const ws of fs.readdirSync(WORKSPACES_ROOT)) {
+                const wsPath = path.join(WORKSPACES_ROOT, ws);
+                if (fs.statSync(wsPath).isDirectory()) {
+                    listCsvFiles(wsPath).forEach(f => {
+                        if (!results.find(r => r.id === f.id)) results.push({ id: f.id, name: f.name, path: f.path });
+                    });
+                }
+            }
+        }
+        return results;
+    });
+
+    // ── GET /api/ontology-admin/datasets/:id/preview ─────────────────────────
+    // Returns ALL rows + column schema inferred from real CSV data
+    app.get("/api/ontology-admin/datasets/:id/preview", async (req: any, reply) => {
+        const { id } = req.params;
+        const projectId = req.query?.projectId as string | undefined;
+
+        const filePath = await resolveDatasetFile(id, projectId);
+        if (!filePath) return reply.status(404).send({ error: `Dataset '${id}' not found` });
+
+        try {
+            const content = fs.readFileSync(filePath, "utf-8");
+            // Always return all rows — no artificial cap
+            const { columns, rows, total } = parseCsvMeta(content, Infinity);
+            return { id, name: id, columns, rows, total, file: path.basename(filePath) };
+        } catch (e) {
+            console.error("CSV read error:", e);
+            return reply.status(500).send({ error: "Failed to read dataset" });
+        }
+    });
+
+    // ── GET /api/ontology-admin/datasets/:id/schema ──────────────────────────
+    // Returns column names + types only (no rows) for join/schema introspection
+    app.get("/api/ontology-admin/datasets/:id/schema", async (req: any, reply) => {
+        const { id } = req.params;
+        const projectId = req.query?.projectId as string | undefined;
+
+        const filePath = await resolveDatasetFile(id, projectId);
+        if (!filePath) return reply.status(404).send({ error: `Dataset '${id}' not found` });
+
+        try {
+            const content = fs.readFileSync(filePath, "utf-8");
+            const { columns, total } = parseCsvMeta(content, 0);
+            return { id, name: id, columns, total };
+        } catch (e) {
+            console.error("Schema read error:", e);
+            return reply.status(500).send({ error: "Failed to read schema" });
+        }
+    });
+
+    // ── GET /api/ontology-admin/projects/:id/datasets ────────────────────────
+    // Lists all CSV files belonging to a specific project's workspace
+    app.get("/api/ontology-admin/projects/:id/datasets", async (req: any, reply) => {
+        const { id } = req.params;
+        const folderPath = await getProjectFolderPath(id);
+        if (!folderPath) return reply.status(404).send({ error: "Project not found or has no workspace" });
+
+        const datasets = listCsvFiles(folderPath).map(f => {
+            // Read column schema from each CSV (header only — fast)
+            try {
+                const content = fs.readFileSync(f.absPath, "utf-8");
+                const firstLine = content.split(/\r?\n/)[0] ?? "";
+                const headers = firstLine.split(",").map(h => h.trim().replace(/^"|"$/g, ""));
+                // Quick 5-line sample for type inference
+                const sample = content.split(/\r?\n/).slice(1, 6);
+                const parseLine = (line: string) => line.split(",").map(v => v.trim().replace(/^"|"$/g, ""));
+                const columns = headers.map((h, i) => ({
+                    name: h,
+                    type: inferType(sample.map(l => parseLine(l)[i] ?? ""))
+                }));
+                return { id: f.id, name: f.name, path: f.path, columns };
+            } catch {
+                return { id: f.id, name: f.name, path: f.path, columns: [] };
+            }
+        });
+
+        return datasets;
+    });
+
+
+    // ════════════════════════════════════════════════════════════════════════════
     // OBJECT TYPES
     // ════════════════════════════════════════════════════════════════════════════
 
-    // GET /api/ontology/object-types
+    // GET /api/ontology-admin/object-types
     // List all Object Types with their property counts and implemented interfaces
-    app.get("/api/ontology/object-types", async (_req, reply) => {
+    app.get("/api/ontology-admin/object-types", async (_req, reply) => {
         const session = driver.session();
         try {
             const result = await session.run(`
@@ -46,55 +293,183 @@ export async function registerOntologyAdminRoutes(app: FastifyInstance, driver: 
         } finally { await session.close(); }
     });
 
-    // GET /api/ontology/object-types/:apiName
+    // GET /api/ontology-admin/object-types/:apiName
     // Get a single Object Type with properties, link types, and actions
-    app.get("/api/ontology/object-types/:apiName", async (req: any, reply) => {
+    app.get("/api/ontology-admin/object-types/:apiName", async (req: any, reply) => {
         const { apiName } = req.params;
         const session = driver.session();
         try {
-            const [otResult, linksResult, actionsResult] = await Promise.all([
-                session.run(`
-                    MATCH (o:OntologyObjectType {api_name: $apiName})
-                    OPTIONAL MATCH (o)-[:HAS_PROPERTY]->(p:OntologyProperty)
-                    OPTIONAL MATCH (o)-[:IMPLEMENTS]->(i:OntologyInterface)
-                    RETURN o { .* } as object_type,
-                           collect(DISTINCT p { .* }) as properties,
-                           collect(DISTINCT i { .* }) as interfaces
-                `, { apiName }),
-                session.run(`
-                    MATCH (l:OntologyLinkType)-[:SOURCE|TARGET]->(o:OntologyObjectType {api_name: $apiName})
-                    MATCH (l)-[:SOURCE]->(src:OntologyObjectType)
-                    MATCH (l)-[:TARGET]->(tgt:OntologyObjectType)
-                    RETURN l { .* } as link_type,
-                           src.api_name as source,
-                           tgt.api_name as target
-                `, { apiName }),
-                session.run(`
-                    MATCH (a:OntologyActionType)-[:TARGETS]->(o:OntologyObjectType {api_name: $apiName})
-                    RETURN a { .* } as action_type
-                `, { apiName })
-            ]);
+            // Use one session sequentially to ensure cleanup
+            const otResult = await session.run(`
+                MATCH (o:OntologyObjectType {api_name: $apiName})
+                OPTIONAL MATCH (o)-[:HAS_PROPERTY]->(p:OntologyProperty)
+                OPTIONAL MATCH (o)-[:IMPLEMENTS]->(i:OntologyInterface)
+                RETURN
+                    o.api_name          AS api_name,
+                    o.display_name      AS display_name,
+                    o.plural_display_name AS plural_display_name,
+                    o.description       AS description,
+                    o.primary_key       AS primary_key,
+                    o.title_property    AS title_property,
+                    o.backing_source    AS backing_source,
+                    o.icon              AS icon,
+                    o.index_status      AS index_status,
+                    toString(o.index_count)  AS index_count,
+                    o.last_synced       AS last_synced,
+                    o.status            AS status,
+                    o.visibility        AS visibility,
+                    o.ontology_name     AS ontology_name,
+                    o.point_of_contact  AS point_of_contact,
+                    o.contributors      AS contributors,
+                    collect(DISTINCT {
+                        api_name: p.api_name,
+                        display_name: p.display_name,
+                        data_type: p.data_type,
+                        is_primary_key: p.is_primary_key,
+                        is_required: p.is_required,
+                        scope: p.scope
+                    }) AS properties,
+                    collect(DISTINCT {
+                        api_name: i.api_name,
+                        display_name: i.display_name
+                    }) AS interfaces
+            `, { apiName });
 
-            if (!otResult.records[0]) return reply.status(404).send({ error: "Object type not found" });
+            if (!otResult.records[0] || otResult.records[0].get("api_name") === null) {
+                return reply.status(404).send({ error: "Object type not found" });
+            }
 
-            const ot = otResult.records[0];
-            return {
-                ...ot.get("object_type"),
-                properties: ot.get("properties"),
-                implements: ot.get("interfaces"),
-                link_types: linksResult.records.map(r => ({
-                    ...r.get("link_type"),
-                    source: r.get("source"),
-                    target: r.get("target")
+            const linksResult = await session.run(`
+                MATCH (l:OntologyLinkType)-[:SOURCE|TARGET]->(o:OntologyObjectType {api_name: $apiName})
+                MATCH (l)-[:SOURCE]->(src:OntologyObjectType)
+                MATCH (l)-[:TARGET]->(tgt:OntologyObjectType)
+                RETURN
+                    l.api_name              AS api_name,
+                    l.display_name_a_side   AS display_name_a_side,
+                    l.display_name_b_side   AS display_name_b_side,
+                    l.cardinality           AS cardinality,
+                    src.api_name            AS source,
+                    tgt.api_name            AS target
+            `, { apiName });
+
+            const actionsResult = await session.run(`
+                MATCH (a:OntologyActionType)-[:TARGETS]->(o:OntologyObjectType {api_name: $apiName})
+                RETURN
+                    a.api_name      AS api_name,
+                    a.display_name  AS display_name,
+                    a.description   AS description,
+                    a.action_type   AS action_type,
+                    a.status        AS status
+            `, { apiName });
+
+            const r = otResult.records[0];
+            const rawProps = (r.get("properties") as any[]).filter((p: any) => p?.api_name != null);
+            const rawIfaces = (r.get("interfaces") as any[]).filter((i: any) => i?.api_name != null);
+
+            const payload = {
+                api_name: String(r.get("api_name") ?? ""),
+                display_name: String(r.get("display_name") ?? ""),
+                plural_display_name: String(r.get("plural_display_name") ?? ""),
+                description: String(r.get("description") ?? ""),
+                primary_key: String(r.get("primary_key") ?? ""),
+                title_property: String(r.get("title_property") ?? ""),
+                backing_source: String(r.get("backing_source") ?? ""),
+                icon: String(r.get("icon") ?? "entity"),
+                index_status: String(r.get("index_status") ?? "pending"),
+                index_count: parseInt(String(r.get("index_count") ?? "0"), 10) || 0,
+                last_synced: r.get("last_synced") ? String(r.get("last_synced")) : null,
+                status: String(r.get("status") ?? "Experimental"),
+                visibility: String(r.get("visibility") ?? "Normal"),
+                ontology_name: String(r.get("ontology_name") ?? "Ontologize Public Ontology"),
+                point_of_contact: String(r.get("point_of_contact") ?? "None"),
+                contributors: String(r.get("contributors") ?? "None"),
+                properties: rawProps.map((p: any) => ({
+                    api_name: String(p.api_name ?? ""),
+                    display_name: String(p.display_name ?? ""),
+                    data_type: String(p.data_type ?? "string"),
+                    is_primary_key: p.is_primary_key === true || p.is_primary_key === "true",
+                    is_required: p.is_required === true || p.is_required === "true",
+                    scope: String(p.scope ?? "local"),
                 })),
-                action_types: actionsResult.records.map(r => r.get("action_type"))
+                implements: rawIfaces.map((i: any) => ({
+                    api_name: String(i.api_name ?? ""),
+                    display_name: String(i.display_name ?? ""),
+                })),
+                link_types: linksResult.records.map(lr => ({
+                    api_name: String(lr.get("api_name") ?? ""),
+                    display_name_a_side: String(lr.get("display_name_a_side") ?? ""),
+                    display_name_b_side: String(lr.get("display_name_b_side") ?? ""),
+                    cardinality: String(lr.get("cardinality") ?? ""),
+                    source: String(lr.get("source") ?? ""),
+                    target: String(lr.get("target") ?? ""),
+                })),
+                action_types: actionsResult.records.map(ar => ({
+                    api_name: String(ar.get("api_name") ?? ""),
+                    display_name: String(ar.get("display_name") ?? ""),
+                    description: String(ar.get("description") ?? ""),
+                    action_type: String(ar.get("action_type") ?? ""),
+                    status: String(ar.get("status") ?? ""),
+                })),
             };
-        } finally { await session.close(); }
+
+            return reply.type("application/json").send(JSON.stringify(payload));
+        } catch (e: any) {
+            console.error(`[GET object-type ${apiName}] Detailed Error:`, e);
+            return reply.status(500).send({ error: "Failed to load object type", detail: e?.message });
+        } finally {
+            await session.close();
+        }
     });
 
-    // POST /api/ontology/object-types
+    // PATCH /api/ontology-admin/object-types/:apiName
+    // Update an existing Object Type
+    app.patch("/api/ontology-admin/object-types/:apiName", async (req: any, reply) => {
+        const { apiName } = req.params;
+        const updates = req.body ?? {};
+        if (Object.keys(updates).length === 0) return reply.status(400).send({ error: "No fields to update" });
+
+        const session = driver.session();
+        try {
+            // Check existence
+            const exists = await session.run(`MATCH (o:OntologyObjectType {api_name: $apiName}) RETURN o`, { apiName });
+            if (exists.records.length === 0) return reply.status(404).send({ error: "Object type not found" });
+
+            // If updating api_name, ensure the new one doesn't exist
+            if (updates.api_name && updates.api_name !== apiName) {
+                const target = await session.run(`MATCH (o:OntologyObjectType {api_name: $newApiName}) RETURN o`, { newApiName: updates.api_name });
+                if (target.records.length > 0) return reply.status(409).send({ error: `Object type '${updates.api_name}' already exists` });
+            }
+
+            // Build dynamic SET clause
+            const setPhrases: string[] = [];
+            const params: Record<string, any> = { apiName };
+            for (const [k, v] of Object.entries(updates)) {
+                // Ignore properties we shouldn't touch here
+                if (['properties', 'implements_interfaces'].includes(k)) continue;
+                setPhrases.push(`o.${k} = $${k}`);
+                params[k] = v;
+            }
+
+            if (setPhrases.length > 0) {
+                await session.run(`
+                    MATCH (o:OntologyObjectType {api_name: $apiName})
+                    SET ${setPhrases.join(", ")}
+                    RETURN o
+                `, params);
+            }
+
+            return reply.send({ status: "updated", api_name: updates.api_name || apiName });
+        } catch (e: any) {
+            console.error(`[PATCH object-type ${apiName}] Error:`, e);
+            return reply.status(500).send({ error: "Failed to update object type" });
+        } finally {
+            await session.close();
+        }
+    });
+
+    // POST /api/ontology-admin/object-types
     // Create a new Object Type with typed properties
-    app.post("/api/ontology/object-types", async (req: any, reply) => {
+    app.post("/api/ontology-admin/object-types", async (req: any, reply) => {
         const { api_name, display_name, plural_display_name, description, primary_key, title_property, backing_source, icon, properties = [], implements_interfaces = [] } = req.body ?? {};
         if (!api_name || !display_name || !primary_key) return reply.status(400).send({ error: "api_name, display_name, and primary_key are required" });
 
@@ -138,8 +513,8 @@ export async function registerOntologyAdminRoutes(app: FastifyInstance, driver: 
         } finally { await session.close(); }
     });
 
-    // POST /api/ontology/object-types/:apiName/index  — manually re-trigger
-    app.post("/api/ontology/object-types/:apiName/index", async (req: any, reply) => {
+    // POST /api/ontology-admin/object-types/:apiName/index  — manually re-trigger
+    app.post("/api/ontology-admin/object-types/:apiName/index", async (req: any, reply) => {
         const { apiName } = req.params;
         const sess = driver.session();
         try {
@@ -151,31 +526,97 @@ export async function registerOntologyAdminRoutes(app: FastifyInstance, driver: 
         } finally { await sess.close(); }
     });
 
-    // GET /api/ontology/object-types/:apiName/index-status  — poll status
-    app.get("/api/ontology/object-types/:apiName/index-status", async (req: any, reply) => {
+    // GET /api/ontology-admin/object-types/:apiName/index-status  — poll status
+    app.get("/api/ontology-admin/object-types/:apiName/index-status", async (req: any, reply) => {
         const { apiName } = req.params;
         const sess = driver.session();
         try {
             const r = await sess.run(
-                `MATCH (o:OntologyObjectType {api_name: $apiName}) RETURN o.index_status as status, o.index_count as count, o.last_synced as last_synced`,
+                `MATCH (o:OntologyObjectType {api_name: $apiName})
+                 RETURN o.index_status AS status,
+                        o.index_count  AS count,
+                        o.last_synced  AS last_synced`,
                 { apiName }
             );
             if (!r.records[0]) return reply.status(404).send({ error: "Not found" });
+
             const rec = r.records[0];
-            return {
+
+            // Safely extract index_count — handles Neo4j Integer, BigInt, plain number, and string
+            const rawCount = rec.get("count");
+            let indexCount = 0;
+            if (rawCount !== null && rawCount !== undefined) {
+                if (typeof rawCount.toNumber === "function") indexCount = rawCount.toNumber();
+                else if (typeof rawCount.toInt === "function") indexCount = rawCount.toInt();
+                else indexCount = parseInt(String(rawCount), 10) || 0;
+            }
+
+            // Safely extract last_synced — Neo4j DateTime objects have a toString()
+            const rawSynced = rec.get("last_synced");
+            const lastSynced = rawSynced != null
+                ? (typeof rawSynced.toString === "function" && typeof rawSynced !== "string"
+                    ? rawSynced.toString()
+                    : String(rawSynced))
+                : null;
+
+            return reply.type("application/json").send(JSON.stringify({
                 api_name: apiName,
-                index_status: rec.get("status") ?? "pending",
-                index_count: typeof rec.get("count")?.toNumber === "function" ? rec.get("count").toNumber() : (rec.get("count") ?? 0),
-                last_synced: rec.get("last_synced") ?? null
-            };
+                index_status: String(rec.get("status") ?? "pending"),
+                index_count: indexCount,
+                last_synced: lastSynced,
+            }));
+        } catch (e: any) {
+            console.error(`[index-status] ${apiName}:`, e.message);
+            return reply.status(500).send({ error: "Failed to get index status", detail: e?.message });
         } finally { await sess.close(); }
     });
 
 
+    // GET /api/ontology-admin/object-types/:apiName/objects  — query indexed objects
+    app.get("/api/ontology-admin/object-types/:apiName/objects", async (req: any, reply) => {
+        const { apiName } = req.params;
+        const limit = parseInt(String(req.query?.limit ?? "100"), 10);
+        const offset = parseInt(String(req.query?.offset ?? "0"), 10);
+        const pk = req.query?.pk as string | undefined;
 
-    // GET /api/ontology/object-types/:apiName/preview
+        const sess = driver.session();
+        try {
+            let result;
+            if (pk) {
+                result = await sess.run(
+                    `MATCH (obj:OntologyObject {_type: $type, _pk: $pk}) RETURN obj { .* } as obj LIMIT 1`,
+                    { type: apiName, pk }
+                );
+            } else {
+                result = await sess.run(
+                    `MATCH (obj:OntologyObject {_type: $type})
+                     RETURN obj { .* } as obj
+                     SKIP $offset LIMIT $limit`,
+                    { type: apiName, offset: int(offset), limit: int(limit) }
+                );
+            }
+            const rows = result.records.map(r => {
+                const obj = r.get("obj") as Record<string, unknown>;
+                // Strip internal keys
+                const { _type, _pk, _indexed_at, ...props } = obj;
+                return props;
+            });
+            const countRes = await sess.run(
+                `MATCH (obj:OntologyObject {_type: $type}) RETURN count(obj) as total`,
+                { type: apiName }
+            );
+            const total = countRes.records[0]?.get("total")?.toNumber?.() ?? rows.length;
+            return { objects: rows, total, limit, offset };
+        } catch (e: any) {
+            console.error(`[objects] ${apiName}:`, e.message);
+            return reply.status(500).send({ error: "Failed to query objects", detail: e?.message });
+        } finally { await sess.close(); }
+    });
+
+
+    // GET /api/ontology-admin/object-types/:apiName/preview
     // Returns up to 200 rows from the backing dataset for the data preview table
-    app.get("/api/ontology/object-types/:apiName/preview", async (req: any, reply) => {
+    app.get("/api/ontology-admin/object-types/:apiName/preview", async (req: any, reply) => {
         const { apiName } = req.params;
         const sess = driver.session();
         let backingSource = "";
@@ -213,25 +654,9 @@ export async function registerOntologyAdminRoutes(app: FastifyInstance, driver: 
         }
     });
 
-    // PATCH /api/ontology/object-types/:apiName
-    // Update Object Type metadata
-    app.patch("/api/ontology/object-types/:apiName", async (req: any, reply) => {
-        const { apiName } = req.params;
-        const updates = req.body ?? {};
-        const allowed = ["display_name", "plural_display_name", "description", "title_property", "backing_source", "icon"];
-        const setClauses = Object.keys(updates).filter(k => allowed.includes(k)).map(k => `o.${k} = $${k}`).join(", ");
-        if (!setClauses) return reply.status(400).send({ error: "No valid fields to update" });
 
-        const session = driver.session();
-        try {
-            const result = await session.run(`MATCH (o:OntologyObjectType {api_name: $apiName}) SET ${setClauses} RETURN o.api_name as api_name`, { apiName, ...updates });
-            if (!result.records[0]) return reply.status(404).send({ error: "Not found" });
-            return { status: "updated", api_name: result.records[0].get("api_name") };
-        } finally { await session.close(); }
-    });
-
-    // DELETE /api/ontology/object-types/:apiName
-    app.delete("/api/ontology/object-types/:apiName", async (req: any, reply) => {
+    // DELETE /api/ontology-admin/object-types/:apiName
+    app.delete("/api/ontology-admin/object-types/:apiName", async (req: any, reply) => {
         const { apiName } = req.params;
         const session = driver.session();
         try {
@@ -244,8 +669,8 @@ export async function registerOntologyAdminRoutes(app: FastifyInstance, driver: 
     // LINK TYPES
     // ════════════════════════════════════════════════════════════════════════════
 
-    // GET /api/ontology/link-types
-    app.get("/api/ontology/link-types", async (_req, _reply) => {
+    // GET /api/ontology-admin/link-types
+    app.get("/api/ontology-admin/link-types", async (_req, _reply) => {
         const session = driver.session();
         try {
             const result = await session.run(`
@@ -263,8 +688,8 @@ export async function registerOntologyAdminRoutes(app: FastifyInstance, driver: 
         } finally { await session.close(); }
     });
 
-    // POST /api/ontology/link-types
-    app.post("/api/ontology/link-types", async (req: any, reply) => {
+    // POST /api/ontology-admin/link-types
+    app.post("/api/ontology-admin/link-types", async (req: any, reply) => {
         const { api_name, display_name_a_side, display_name_b_side, cardinality, source_object_type, target_object_type, foreign_key_property } = req.body ?? {};
         if (!api_name || !source_object_type || !target_object_type || !cardinality) return reply.status(400).send({ error: "api_name, source_object_type, target_object_type, and cardinality are required" });
         if (!["ONE_TO_ONE", "ONE_TO_MANY", "MANY_TO_MANY"].includes(cardinality)) return reply.status(400).send({ error: "cardinality must be ONE_TO_ONE, ONE_TO_MANY, or MANY_TO_MANY" });
@@ -288,8 +713,8 @@ export async function registerOntologyAdminRoutes(app: FastifyInstance, driver: 
     // ACTION TYPES
     // ════════════════════════════════════════════════════════════════════════════
 
-    // GET /api/ontology/action-types
-    app.get("/api/ontology/action-types", async (_req, _reply) => {
+    // GET /api/ontology-admin/action-types
+    app.get("/api/ontology-admin/action-types", async (_req, _reply) => {
         const session = driver.session();
         try {
             const result = await session.run(`
@@ -312,8 +737,8 @@ export async function registerOntologyAdminRoutes(app: FastifyInstance, driver: 
         } finally { await session.close(); }
     });
 
-    // GET /api/ontology/action-types/:apiName
-    app.get("/api/ontology/action-types/:apiName", async (req: any, reply) => {
+    // GET /api/ontology-admin/action-types/:apiName
+    app.get("/api/ontology-admin/action-types/:apiName", async (req: any, reply) => {
         const { apiName } = req.params;
         const session = driver.session();
         try {
@@ -331,8 +756,8 @@ export async function registerOntologyAdminRoutes(app: FastifyInstance, driver: 
         } finally { await session.close(); }
     });
 
-    // POST /api/ontology/action-types
-    app.post("/api/ontology/action-types", async (req: any, reply) => {
+    // POST /api/ontology-admin/action-types
+    app.post("/api/ontology-admin/action-types", async (req: any, reply) => {
         const { api_name, display_name, description, hitl_level = 1, writeback_target, targets = [], parameters = [], rules = [] } = req.body ?? {};
         if (!api_name || !display_name || !writeback_target) return reply.status(400).send({ error: "api_name, display_name, writeback_target are required" });
         const session = driver.session();
@@ -361,9 +786,9 @@ export async function registerOntologyAdminRoutes(app: FastifyInstance, driver: 
         } finally { await session.close(); }
     });
 
-    // POST /api/ontology/action-types/:apiName/apply
+    // POST /api/ontology-admin/action-types/:apiName/apply
     // Execute an Action Type — HITL gate enforced natively
-    app.post("/api/ontology/action-types/:apiName/apply", async (req: any, reply) => {
+    app.post("/api/ontology-admin/action-types/:apiName/apply", async (req: any, reply) => {
         const { apiName } = req.params;
         const paramValues: Record<string, any> = req.body ?? {};
         const session = driver.session();
@@ -424,8 +849,8 @@ export async function registerOntologyAdminRoutes(app: FastifyInstance, driver: 
     // INTERFACES
     // ════════════════════════════════════════════════════════════════════════════
 
-    // GET /api/ontology/interfaces
-    app.get("/api/ontology/interfaces", async (_req, _reply) => {
+    // GET /api/ontology-admin/interfaces
+    app.get("/api/ontology-admin/interfaces", async (_req, _reply) => {
         const session = driver.session();
         try {
             const result = await session.run(`
@@ -448,8 +873,8 @@ export async function registerOntologyAdminRoutes(app: FastifyInstance, driver: 
         } finally { await session.close(); }
     });
 
-    // POST /api/ontology/interfaces
-    app.post("/api/ontology/interfaces", async (req: any, reply) => {
+    // POST /api/ontology-admin/interfaces
+    app.post("/api/ontology-admin/interfaces", async (req: any, reply) => {
         const { api_name, display_name, description, properties = [] } = req.body ?? {};
         if (!api_name || !display_name) return reply.status(400).send({ error: "api_name and display_name are required" });
         const session = driver.session();
@@ -491,7 +916,7 @@ export async function registerOntologyAdminRoutes(app: FastifyInstance, driver: 
         fs.writeFileSync(projectsJsonPath, JSON.stringify(projects, null, 2), "utf-8");
     }
 
-    app.get("/api/ontology/projects", async (_req, _reply) => {
+    app.get("/api/ontology-admin/projects", async (_req, _reply) => {
         const session = driver.session();
         try {
             const result = await session.run(`
@@ -513,7 +938,7 @@ export async function registerOntologyAdminRoutes(app: FastifyInstance, driver: 
         } finally { await session.close(); }
     });
 
-    app.post("/api/ontology/projects", async (req: any, reply) => {
+    app.post("/api/ontology-admin/projects", async (req: any, reply) => {
         const { id, name, description, space, template, role, tags } = req.body;
         // 1. Create local directory structure
         const sanitizedName = (name || "Untitled").replace(/[^a-z0-9_-]/gi, '_').toLowerCase();
@@ -556,7 +981,7 @@ export async function registerOntologyAdminRoutes(app: FastifyInstance, driver: 
         reply.status(200).send({ success: true, id, path: workspacePath });
     });
 
-    app.get("/api/ontology/projects/:id", async (req: any, reply) => {
+    app.get("/api/ontology-admin/projects/:id", async (req: any, reply) => {
         const { id } = req.params;
         const session = driver.session();
         try {
@@ -585,7 +1010,7 @@ export async function registerOntologyAdminRoutes(app: FastifyInstance, driver: 
         } finally { await session.close(); }
     });
 
-    app.get("/api/ontology/projects/:id/folders", async (req: any, _reply) => {
+    app.get("/api/ontology-admin/projects/:id/folders", async (req: any, _reply) => {
         const { id } = req.params;
         const session = driver.session();
         try {
@@ -624,7 +1049,7 @@ export async function registerOntologyAdminRoutes(app: FastifyInstance, driver: 
         } finally { await session.close(); }
     });
 
-    app.post("/api/ontology/projects/:id/folders", async (req: any, reply) => {
+    app.post("/api/ontology-admin/projects/:id/folders", async (req: any, reply) => {
         const { id } = req.params;
         const { folderId, name } = req.body;
         const session = driver.session();
@@ -661,8 +1086,8 @@ export async function registerOntologyAdminRoutes(app: FastifyInstance, driver: 
         } finally { await session.close(); }
     });
 
-    // GET /api/ontology/schema — full ontology summary for UI rendering
-    app.get("/api/ontology/schema", async (_req, _reply) => {
+    // GET /api/ontology-admin/schema — full ontology summary for UI rendering
+    app.get("/api/ontology-admin/schema", async (_req, _reply) => {
         const session = driver.session();
         try {
             const objectTypes = await session.run(`
@@ -730,7 +1155,7 @@ export async function registerOntologyAdminRoutes(app: FastifyInstance, driver: 
         } finally { await session.close(); }
     });
 
-    app.post("/api/ontology/projects/:id/upload", async (req: any, reply) => {
+    app.post("/api/ontology-admin/projects/:id/upload", async (req: any, reply) => {
         const { id } = req.params;
         const session = driver.session();
 
@@ -799,177 +1224,6 @@ export async function registerOntologyAdminRoutes(app: FastifyInstance, driver: 
         }
     });
 
-    // GET /api/ontology/projects/:id/datasets
-    // List all datasets belonging to a project
-    app.get("/api/ontology/projects/:id/datasets", async (req: any, reply) => {
-        const { id } = req.params;
-        const session = driver.session();
-        try {
-            let dir = "";
-            try {
-                const projectResult = await session.run(`
-                    MATCH (p:OntologyProject {id: $id})
-                    RETURN p.folder_path as folderPath
-                `, { id });
-                if (projectResult.records.length > 0) {
-                    dir = projectResult.records[0].get("folderPath") || "";
-                }
-            } catch { /* ignore path lookup */ }
-
-            const result = await session.run(`
-                MATCH (p:OntologyProject {id: $id})<-[:BELONGS_TO]-(d:OntologyDataset)
-                RETURN d { .*, created_at: toString(d.created_at) } as dataset
-                ORDER BY d.created_at DESC
-            `, { id });
-
-            const merged = new Map<string, Record<string, unknown>>();
-            for (const r of result.records) {
-                const d = r.get("dataset");
-                merged.set(String(d.name), {
-                    ...d,
-                    created_at: parseInt(d.created_at || "0") || Date.now()
-                });
-            }
-
-            if (dir && fs.existsSync(dir)) {
-                for (const dirent of fs.readdirSync(dir, { withFileTypes: true })) {
-                    if (!dirent.isFile() || dirent.name.startsWith(".")) continue;
-                    if (merged.has(dirent.name)) continue;
-                    merged.set(dirent.name, {
-                        id: dirent.name,
-                        name: dirent.name,
-                        file_path: path.join(dir, dirent.name),
-                        created_at: Date.now()
-                    });
-                }
-            }
-
-            return Array.from(merged.values()).sort((a, b) => Number(b.created_at ?? 0) - Number(a.created_at ?? 0));
-        } catch {
-            // Neo4j offline — fallback to reading the workspace directory on disk
-            const projects = readProjectsJson();
-            const p = projects.find(pr => pr["id"] === id);
-            if (!p || !p["folder_path"]) return reply.status(404).send({ error: "Project not found" });
-
-            const dir = p["folder_path"] as string;
-            if (fs.existsSync(dir)) {
-                return fs.readdirSync(dir, { withFileTypes: true })
-                    .filter(dirent => dirent.isFile() && !dirent.name.startsWith("."))
-                    .map(dirent => ({
-                        id: dirent.name,
-                        name: dirent.name,
-                        file_path: path.join(dir, dirent.name),
-                        created_at: Date.now()
-                    }));
-            }
-            return [];
-        } finally { await session.close(); }
-    });
-
-    // GET /api/ontology/datasets/:id/preview
-    // Stream a CSV dataset directly to JSON for the builder UI
-    app.get("/api/ontology/datasets/:id/preview", async (req: any, reply) => {
-        const { id } = req.params;
-        const { projectId, limit } = req.query;
-        let filePath = "";
-
-        // ── 1. Try Neo4j first ────────────────────────────────────────────────
-        const session = driver.session();
-        try {
-            const result = await session.run(
-                `MATCH (d:OntologyDataset {id: $id}) RETURN d.file_path as path`,
-                { id }
-            );
-            if (result.records.length > 0) {
-                filePath = result.records[0].get("path") || "";
-            }
-        } catch { /* Neo4j offline */ }
-        try { await session.close(); } catch { /* ignore */ }
-
-        // ── 2. Fallback: search workspace directories ─────────────────────────
-        if (!filePath || !fs.existsSync(filePath)) {
-            const searchRecursive = (dir: string): string => {
-                if (!fs.existsSync(dir)) return "";
-                try {
-                    const entries = fs.readdirSync(dir, { withFileTypes: true });
-                    for (const entry of entries) {
-                        const fullPath = path.join(dir, entry.name);
-                        if (entry.isDirectory()) {
-                            const found = searchRecursive(fullPath);
-                            if (found) return found;
-                        } else if (entry.isFile() && entry.name === id) {
-                            return fullPath;
-                        }
-                    }
-                } catch { /* skip unreadable dirs */ }
-                return "";
-            };
-
-            const projects = readProjectsJson();
-            // If a projectId is given, only search that project's workspace
-            const candidates = projectId
-                ? projects.filter(p => p["id"] === projectId)
-                : projects;
-
-            for (const p of candidates) {
-                if (p["folder_path"]) {
-                    const found = searchRecursive(p["folder_path"] as string);
-                    if (found) { filePath = found; break; }
-                }
-            }
-
-            // If still not found, also search the global workspaces root
-            if (!filePath) {
-                const workspacesRoot = path.join(process.cwd(), "..", "..", "data", "workspaces");
-                filePath = searchRecursive(workspacesRoot);
-            }
-        }
-
-        if (!filePath || !fs.existsSync(filePath)) {
-            return reply.status(404).send({ error: `Dataset file not found: ${id}` });
-        }
-
-        // ── 3. Parse CSV ───────────────────────────────────────────────────────
-        try {
-            const content = fs.readFileSync(filePath, "utf-8");
-            // Normalize line endings: handle \r\n and \n
-            const lines = content.replace(/\r\n/g, "\n").replace(/\r/g, "\n")
-                .split("\n").map(l => l.trim()).filter(l => l.length > 0);
-            if (lines.length === 0) return { columns: [], rows: [] };
-
-            // Simple CSV parser that handles quoted fields
-            const parseCSVLine = (line: string): string[] => {
-                const result: string[] = [];
-                let current = "";
-                let inQuotes = false;
-                for (let i = 0; i < line.length; i++) {
-                    const ch = line[i];
-                    if (ch === '"') { inQuotes = !inQuotes; }
-                    else if (ch === ',' && !inQuotes) { result.push(current.trim()); current = ""; }
-                    else { current += ch; }
-                }
-                result.push(current.trim());
-                return result;
-            };
-
-            const headers = parseCSVLine(lines[0]);
-            const columns = headers.map(h => ({ name: h, type: "String" }));
-            const rows: Record<string, string>[] = [];
-
-            const maxLines = limit === "all" ? lines.length : Math.min(lines.length, 501);
-            for (let i = 1; i < maxLines; i++) {
-                const values = parseCSVLine(lines[i]);
-                const rowObj: Record<string, string> = {};
-                headers.forEach((h, idx) => { rowObj[h] = values[idx] ?? ""; });
-                rows.push(rowObj);
-            }
-            return { columns, rows, total: lines.length - 1 };
-        } catch (e: any) {
-            return reply.status(500).send({ error: "Failed to parse CSV: " + e.message });
-        }
-    });
-
-
     // ── Pipelines JSON fallback helpers ───────────────────────────────────────
     const pipelinesJsonPath = path.join(process.cwd(), "..", "..", "data", "pipelines.json");
 
@@ -988,9 +1242,9 @@ export async function registerOntologyAdminRoutes(app: FastifyInstance, driver: 
         fs.writeFileSync(pipelinesJsonPath, JSON.stringify(pipelines, null, 2), "utf-8");
     }
 
-    // GET /api/ontology/pipelines/:id
+    // GET /api/ontology-admin/pipelines/:id
     // Fetch pipeline and its parent project
-    app.get("/api/ontology/pipelines/:id", async (req: any, reply) => {
+    app.get("/api/ontology-admin/pipelines/:id", async (req: any, reply) => {
         const { id } = req.params;
         const session = driver.session();
         try {
@@ -1025,9 +1279,9 @@ export async function registerOntologyAdminRoutes(app: FastifyInstance, driver: 
         } finally { await session.close(); }
     });
 
-    // POST /api/ontology/projects/:id/pipelines
+    // POST /api/ontology-admin/projects/:id/pipelines
     // Create a new pipeline in a project/folder
-    app.post("/api/ontology/projects/:id/pipelines", async (req: any, reply) => {
+    app.post("/api/ontology-admin/projects/:id/pipelines", async (req: any, reply) => {
         const { id } = req.params;
         const { id: pipelineId, name, folderId, type, compute } = req.body;
         const session = driver.session();
@@ -1078,10 +1332,10 @@ export async function registerOntologyAdminRoutes(app: FastifyInstance, driver: 
 
     // ════════════════════════════════════════════════════════════════════════════
     // PIPELINE TRANSFORMS
-    // POST /api/ontology/pipelines/:id/transforms/:nodeId
+    // POST /api/ontology-admin/pipelines/:id/transforms/:nodeId
     // Save (replace) the full transform chain + path name for a specific pipeline node
     // ════════════════════════════════════════════════════════════════════════════
-    app.post("/api/ontology/pipelines/:id/transforms/:nodeId", async (req: any, reply) => {
+    app.post("/api/ontology-admin/pipelines/:id/transforms/:nodeId", async (req: any, reply) => {
         const { id, nodeId } = req.params;
         const { pathName, transforms } = req.body as {
             pathName: string;
@@ -1138,9 +1392,9 @@ export async function registerOntologyAdminRoutes(app: FastifyInstance, driver: 
         }
     });
 
-    // GET /api/ontology/pipelines/:id/transforms/:nodeId
+    // GET /api/ontology-admin/pipelines/:id/transforms/:nodeId
     // Load the saved transform chain for a node
-    app.get("/api/ontology/pipelines/:id/transforms/:nodeId", async (req: any, reply) => {
+    app.get("/api/ontology-admin/pipelines/:id/transforms/:nodeId", async (req: any, reply) => {
         const { id, nodeId } = req.params;
         const session = driver.session();
         try {
@@ -1183,9 +1437,9 @@ export async function registerOntologyAdminRoutes(app: FastifyInstance, driver: 
         }
     });
 
-    // GET /api/ontology/pipelines
+    // GET /api/ontology-admin/pipelines
     // List all pipelines
-    app.get("/api/ontology/pipelines", async (_req, reply) => {
+    app.get("/api/ontology-admin/pipelines", async (_req, reply) => {
         const session = driver.session();
         try {
             const result = await session.run(`
@@ -1208,53 +1462,171 @@ export async function registerOntologyAdminRoutes(app: FastifyInstance, driver: 
 
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Background indexing simulation
-// Mimics a Foundry Phonograph sync job: reads the backing dataset, counts rows,
-// and increments index_count in Neo4j in batches until complete.
-// ─────────────────────────────────────────────────────────────────────────────
+
 async function triggerIndexing(apiName: string, backingSource: string, driver: Driver) {
-    // 1. Estimate the dataset size from the backing source
-    // In production this would be a real Spark rowcount query.
-    // Here we simulate by checking if any data files exist or use a fixed size.
-    let totalRows = 850; // default simulated dataset size
-    try {
-        const dataDir = path.resolve(process.cwd(), "../../data");
-        const csvFiles = fs.readdirSync(dataDir).filter(f => f.endsWith(".csv") && f.includes("order"));
-        if (csvFiles.length > 0) {
-            const content = fs.readFileSync(path.join(dataDir, csvFiles[0]), "utf-8");
-            // Count non-empty lines minus header
-            totalRows = Math.max(1, content.split("\n").filter(l => l.trim()).length - 1);
+    const DATA_ROOT = path.resolve(process.cwd(), "..", "..", "data");
+    const WORKSPACES_ROOT = path.join(DATA_ROOT, "workspaces");
+
+    // ── 1. Find the backing CSV ────────────────────────────────────────────────
+    let csvPath: string | null = null;
+
+    if (fs.existsSync(WORKSPACES_ROOT)) {
+        for (const ws of fs.readdirSync(WORKSPACES_ROOT)) {
+            const candidate = path.join(WORKSPACES_ROOT, ws, `${backingSource}.csv`);
+            if (fs.existsSync(candidate)) { csvPath = candidate; break; }
         }
+    }
+    if (!csvPath) {
+        const flat = path.join(DATA_ROOT, `${backingSource}.csv`);
+        if (fs.existsSync(flat)) csvPath = flat;
+    }
+
+    if (!csvPath) {
+        console.warn(`[indexing] ${apiName}: no CSV found for '${backingSource}', defaulting to 0`);
+        const s = driver.session();
+        await s.run(
+            `MATCH (o:OntologyObjectType {api_name: $n}) SET o.index_status='active', o.index_count=0, o.last_synced=$ts`,
+            { n: apiName, ts: new Date().toISOString() }
+        ).finally(() => s.close());
+        return;
+    }
+
+    console.log(`[indexing] ${apiName}: streaming from ${csvPath}`);
+
+    // ── 2. Read primary_key for this object type ───────────────────────────────
+    let primaryKey = "id";
+    try {
+        const ms = driver.session();
+        const pkRes = await ms.run(
+            `MATCH (o:OntologyObjectType {api_name: $n}) RETURN o.primary_key as pk`,
+            { n: apiName }
+        );
+        if (pkRes.records[0]) primaryKey = pkRes.records[0].get("pk") ?? "id";
+        await ms.close();
     } catch { /* use default */ }
 
-    // 2. Increment index_count in batches of ~50 every 200ms
-    const batchSize = Math.max(1, Math.ceil(totalRows / 20)); // ~20 ticks
-    let indexed = 0;
+    // ── 3. Stream CSV and parse rows ───────────────────────────────────────────
+    const { createReadStream } = await import("fs");
+    const { createInterface } = await import("readline");
 
-    const sess = driver.session();
-    try {
-        while (indexed < totalRows) {
-            indexed = Math.min(indexed + batchSize, totalRows);
+    const rl = createInterface({
+        input: createReadStream(csvPath, { encoding: "utf-8" }),
+        crlfDelay: Infinity,
+    });
+
+    const parseLine = (line: string): string[] => {
+        const result: string[] = [];
+        let cur = ""; let inQ = false;
+        for (const ch of line) {
+            if (ch === '"') { inQ = !inQ; continue; }
+            if (ch === "," && !inQ) { result.push(cur); cur = ""; continue; }
+            cur += ch;
+        }
+        result.push(cur);
+        return result.map(v => v.trim());
+    };
+
+    let headers: string[] = [];
+    const BATCH_SIZE = 50;   // rows per Neo4j write
+    const PARALLEL = 5;    // concurrent batches
+    let pending: Record<string, string>[] = [];
+    let totalIndexed = 0;
+    let isFirstLine = true;
+
+    const mainSess = driver.session();
+
+    /** Write one batch of rows to Neo4j as OntologyObject nodes */
+    const writeBatch = async (rows: Record<string, string>[]) => {
+        const sess = driver.session();
+        try {
+            // Delete old objects for this type in this batch range then MERGE fresh nodes
             await sess.run(
-                `MATCH (o:OntologyObjectType {api_name: $apiName}) SET o.index_count = $count`,
-                { apiName, count: indexed }
+                `UNWIND $rows AS row
+                 MERGE (obj:OntologyObject {_type: $type, _pk: row._pk})
+                 SET obj   = row,
+                     obj._type = $type,
+                     obj._pk   = row._pk,
+                     obj._indexed_at = $ts`,
+                {
+                    type: apiName,
+                    rows: rows.map(r => ({ ...r, _pk: String(r[primaryKey] ?? Object.values(r)[0] ?? "") })),
+                    ts: new Date().toISOString(),
+                }
             );
-            await new Promise(r => setTimeout(r, 200));
+        } catch (e) {
+            console.error(`[indexing] ${apiName}: batch write error`, e);
+        } finally {
+            await sess.close();
+        }
+    };
+
+    const batchQueue: Record<string, string>[][] = [];
+    let running = 0;
+
+    const flush = async (force = false) => {
+        while (pending.length >= BATCH_SIZE || (force && pending.length > 0)) {
+            const batch = pending.splice(0, BATCH_SIZE);
+            batchQueue.push(batch);
         }
 
-        // 3. Mark as active
-        await sess.run(
-            `MATCH (o:OntologyObjectType {api_name: $apiName}) SET o.index_status = 'active', o.index_count = $count, o.last_synced = $ts`,
-            { apiName, count: totalRows, ts: new Date().toISOString() }
+        // Drain queue with parallelism limit
+        while (batchQueue.length > 0 && running < PARALLEL) {
+            const b = batchQueue.shift()!;
+            running++;
+            writeBatch(b).then(async () => {
+                totalIndexed += b.length;
+                running--;
+                // Update progress in Neo4j
+                try {
+                    await mainSess.run(
+                        `MATCH (o:OntologyObjectType {api_name: $n}) SET o.index_count = $c`,
+                        { n: apiName, c: int(totalIndexed) }
+                    );
+                } catch (err: any) {
+                    console.error(`[indexing] ${apiName}: count update error`, err.message);
+                }
+            });
+        }
+    };
+
+    // Read line by line
+    for await (const line of rl) {
+        if (!line.trim()) continue;
+        if (isFirstLine) {
+            headers = parseLine(line);
+            isFirstLine = false;
+            continue;
+        }
+        const vals = parseLine(line);
+        const row: Record<string, string> = {};
+        headers.forEach((h, i) => { row[h] = vals[i] ?? ""; });
+        pending.push(row);
+        if (pending.length >= BATCH_SIZE) await flush();
+    }
+
+    // Flush remaining rows
+    await flush(true);
+
+    // Wait for all running batches to complete
+    await new Promise<void>((resolve) => {
+        const wait = () => { if (running === 0 && batchQueue.length === 0) resolve(); else setTimeout(wait, 100); };
+        wait();
+    });
+
+    // ── 4. Mark as active ─────────────────────────────────────────────────────
+    try {
+        await mainSess.run(
+            `MATCH (o:OntologyObjectType {api_name: $n})
+             SET o.index_status = 'active',
+                 o.index_count  = $c,
+                 o.last_synced  = $ts`,
+            { n: apiName, c: int(totalIndexed), ts: new Date().toISOString() }
         );
+        console.log(`[indexing] ${apiName}: complete — ${totalIndexed} objects written to Neo4j`);
     } catch (e) {
-        console.error(`Indexing failed for ${apiName}:`, e);
-        await sess.run(
-            `MATCH (o:OntologyObjectType {api_name: $apiName}) SET o.index_status = 'error'`,
-            { apiName }
-        ).catch(() => { });
+        console.error(`[indexing] ${apiName}: final status update failed`, e);
     } finally {
-        await sess.close();
+        await mainSess.close();
     }
 }
+

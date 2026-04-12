@@ -19,8 +19,8 @@ export default function RootLayout({
   children: React.ReactNode
 }) {
   return (
-    <html lang="en" className="dark">
-      <body className={`${inter.className} bg-[#0d1117] text-neutral-200 antialiased min-h-screen flex overflow-hidden`}>
+    <html lang="en" className="dark" suppressHydrationWarning>
+      <body suppressHydrationWarning className={`${inter.className} bg-[#0d1117] text-neutral-200 antialiased min-h-screen flex overflow-hidden`}>
         <AuthProvider>
           <ApolloProvider>
             <GlobalSidebar />

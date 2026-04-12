@@ -225,7 +225,7 @@ const resolvers = {
 
 // ─── @neo4j/graphql Setup ─────────────────────────────────────────────
 
-console.log("🔵 Generating dynamic schema from Palantir-compatible Ontology Registry...");
+console.log("🔵 Generating dynamic schema from Y-AIP-compatible Ontology Registry...");
 const dynamicTypeDefs = await generateDynamicTypeDefs(driver);
 const typeDefs = coreTypeDefs + "\n" + dynamicTypeDefs;
 
@@ -260,7 +260,7 @@ for (const rec of actionTypeRecords.records) {
         args: { input: Record<string, any> },
         _context: unknown
     ) => {
-        const proxiedUrl = `http://localhost:${process.env["GRAPHQL_PORT"] ?? 4001}/api/ontology/action-types/${apiName}/apply`;
+        const proxiedUrl = `http://localhost:${process.env["GRAPHQL_PORT"] ?? 4001}/api/ontology-admin/action-types/${apiName}/apply`;
         const res = await fetch(proxiedUrl, {
             method: "POST",
             headers: { "Content-Type": "application/json" },

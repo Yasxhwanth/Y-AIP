@@ -86,7 +86,7 @@ export function CreateProjectModal({ isOpen, onClose, onCreate }: CreateProjectM
                                     <div>
                                         <h4 className="text-[14px] text-gray-800 font-bold mb-1">Advanced</h4>
                                         <p className="text-[12px] text-gray-600 leading-snug pr-4">
-                                            The project will be created in <Building2 className="w-3.5 h-3.5 inline text-gray-600 font-bold" /> <span className="font-bold text-gray-800">Ontologize Public</span>. Everyone from <Building2 className="w-3.5 h-3.5 inline text-gray-600 font-bold" /> <span className="font-bold text-gray-800">Ontologize Public</span> will be able to see its existence and be granted the <span className="font-bold border-b border-gray-300 border-dashed">Owner</span> role.
+                                            The project will be created in <Building2 className="w-3.5 h-3.5 inline text-gray-600 font-bold" /> <span className="font-bold text-gray-800">Y-AIP Public</span>. Everyone from <Building2 className="w-3.5 h-3.5 inline text-gray-600 font-bold" /> <span className="font-bold text-gray-800">Y-AIP Public</span> will be able to see its existence and be granted the <span className="font-bold border-b border-gray-300 border-dashed">Owner</span> role.
                                         </p>
                                     </div>
                                     <ChevronDown className={`w-5 h-5 text-gray-500 mt-1 transition-transform ${isAdvancedOpen ? 'rotate-180' : ''}`} />

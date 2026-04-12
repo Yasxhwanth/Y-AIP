@@ -1,13 +1,13 @@
 // Y-AIP Workshop Admin APIs
 // Allows the Command Center to save and load Custom Dashboard UI Configs.
-// In Palantir AIP, this is the underlying persistence layer for Workshop layouts.
+// In Y-AIP, this is the underlying persistence layer for Workshop layouts.
 
 import { FastifyInstance } from "fastify";
 import fs from "fs/promises";
 import path from "path";
 
 // For the MVP, we will store Workshop JSON Layouts in a local file to avoid
-// complex Neo4j JSON stringification migrations right now. In a prod Palantir
+// complex Neo4j JSON stringification migrations right now. In a prod Y-AIP
 // environment, these would be backed by Postgres or secure blob storage.
 const DATA_DIR = path.join(process.cwd(), "data");
 const WORKSHOP_FILE = path.join(DATA_DIR, "workshop-dashboards.json");

@@ -1,9 +1,9 @@
 /**
- * dynamic-schema.ts — 1:1 Palantir Ontology Dynamic GraphQL SDL Generator
+ * dynamic-schema.ts — 1:1 Y-AIP Ontology Dynamic GraphQL SDL Generator
  *
  * On every server boot, queries the Neo4j Ontology Registry to synthesize
  * the full GraphQL Schema Definition Language (SDL) string, covering all
- * 4 Palantir Ontology primitives:
+ * 4 Y-AIP Ontology primitives:
  *   1. Object Types → `type {Name} @node { ...typedProperties }`
  *   2. Interfaces   → `interface {Name} { ...sharedProperties }`
  *   3. Link Types   → `@relationship(type, direction)` directives on fields
@@ -182,7 +182,7 @@ export async function generateDynamicTypeDefs(driver: Driver): Promise<string> {
                 }
             }
 
-            // Governance properties (universal — matches Palantir "markings")
+            // Governance properties (universal — matches Y-AIP "markings")
             sdl += `    classification: String\n`;
             sdl += `    createdBy: String\n`;
             sdl += `    createdAt: DateTime @timestamp(operations: [CREATE])\n`;
