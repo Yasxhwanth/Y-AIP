@@ -1,0 +1,788 @@
+{
+  "branches": {
+    "Main": {
+      "nodes": [
+        {
+          "id": "dataset-consolidated_customers-1776086995487",
+          "position": {
+            "x": 206.14834273977527,
+            "y": 72.8649542652307
+          },
+          "data": {
+            "label": "consolidated_customers",
+            "datasetId": "consolidated_customers",
+            "columns": [
+              {
+                "name": "officegoods_customer_id",
+                "type": "string"
+              },
+              {
+                "name": "bureau_customer_id",
+                "type": "string"
+              },
+              {
+                "name": "consolidated_customer_id",
+                "type": "string"
+              },
+              {
+                "name": "customer_name",
+                "type": "string"
+              }
+            ]
+          },
+          "type": "datasetNode",
+          "width": 260,
+          "height": 76,
+          "selected": false,
+          "positionAbsolute": {
+            "x": 206.14834273977527,
+            "y": 72.8649542652307
+          },
+          "dragging": false
+        },
+        {
+          "id": "dataset-orders_bureau_transactional_system-1776086995488",
+          "position": {
+            "x": 197.7782318086326,
+            "y": 195.49166504486635
+          },
+          "data": {
+            "label": "orders_bureau_transactional_system",
+            "datasetId": "orders_bureau_transactional_system",
+            "columns": [
+              {
+                "name": "order_id",
+                "type": "string"
+              },
+              {
+                "name": "customer_id",
+                "type": "string"
+              },
+              {
+                "name": "status",
+                "type": "string"
+              },
+              {
+                "name": "assignee",
+                "type": "string"
+              },
+              {
+                "name": "quantity",
+                "type": "integer"
+              },
+              {
+                "name": "item_name",
+                "type": "string"
+              },
+              {
+                "name": "unit_price",
+                "type": "integer"
+              },
+              {
+                "name": "order_due_date",
+                "type": "date"
+              },
+              {
+                "name": "days_until_due",
+                "type": "integer"
+              }
+            ]
+          },
+          "type": "datasetNode",
+          "width": 260,
+          "height": 76,
+          "selected": false,
+          "positionAbsolute": {
+            "x": 197.7782318086326,
+            "y": 195.49166504486635
+          },
+          "dragging": false
+        },
+        {
+          "id": "dataset-orders_office_goods-1776086995489",
+          "position": {
+            "x": 181.86374153748318,
+            "y": 302.5926417443552
+          },
+          "data": {
+            "label": "orders_office_goods",
+            "datasetId": "orders_office_goods",
+            "columns": [
+              {
+                "name": "dueDateTime",
+                "type": "date"
+              },
+              {
+                "name": "orderId",
+                "type": "string"
+              },
+              {
+                "name": "customer_id",
+                "type": "string"
+              },
+              {
+                "name": "orderPlacementDate",
+                "type": "date"
+              },
+              {
+                "name": "status",
+                "type": "string"
+              },
+              {
+                "name": "assignee",
+                "type": "string"
+              },
+              {
+                "name": "quantity",
+                "type": "integer"
+              },
+              {
+                "name": "item_name",
+                "type": "string"
+              },
+              {
+                "name": "unit_price",
+                "type": "integer"
+              },
+              {
+                "name": "days_until_due",
+                "type": "integer"
+              }
+            ]
+          },
+          "type": "datasetNode",
+          "width": 260,
+          "height": 76,
+          "selected": false,
+          "positionAbsolute": {
+            "x": 181.86374153748318,
+            "y": 302.5926417443552
+          },
+          "dragging": false
+        },
+        {
+          "id": "transform-dataset-orders_bureau_transactional_system-1776086995488",
+          "position": {
+            "x": 547.7782318086327,
+            "y": 195.49166504486635
+          },
+          "type": "transformNode",
+          "data": {
+            "label": "Transform path 1",
+            "columns": [
+              {
+                "name": "orderid",
+                "type": "string"
+              },
+              {
+                "name": "customer_id",
+                "type": "string"
+              },
+              {
+                "name": "status",
+                "type": "string"
+              },
+              {
+                "name": "assignee",
+                "type": "string"
+              },
+              {
+                "name": "quantity",
+                "type": "integer"
+              },
+              {
+                "name": "item_name",
+                "type": "string"
+              },
+              {
+                "name": "unit_price",
+                "type": "integer"
+              },
+              {
+                "name": "order_due_date",
+                "type": "Timestamp"
+              },
+              {
+                "name": "days_until_due",
+                "type": "integer"
+              }
+            ],
+            "sourceDatasetId": "dataset-orders_bureau_transactional_system-1776086995488",
+            "datasetId": "transform-dataset-orders_bureau_transactional_system-1776086995488"
+          },
+          "width": 192,
+          "height": 66,
+          "selected": false,
+          "dragging": false
+        },
+        {
+          "id": "transform-dataset-orders_office_goods-1776086995489",
+          "position": {
+            "x": 531.8637415374832,
+            "y": 302.5926417443552
+          },
+          "type": "transformNode",
+          "data": {
+            "label": "clean office goods",
+            "columns": [
+              {
+                "name": "order_due_date",
+                "type": "Timestamp"
+              },
+              {
+                "name": "orderid",
+                "type": "string"
+              },
+              {
+                "name": "customer_id",
+                "type": "string"
+              },
+              {
+                "name": "status",
+                "type": "string"
+              },
+              {
+                "name": "assignee",
+                "type": "string"
+              },
+              {
+                "name": "quantity",
+                "type": "integer"
+              },
+              {
+                "name": "item_name",
+                "type": "string"
+              },
+              {
+                "name": "unit_price",
+                "type": "integer"
+              },
+              {
+                "name": "days_until_due",
+                "type": "integer"
+              }
+            ],
+            "sourceDatasetId": "dataset-orders_office_goods-1776086995489",
+            "datasetId": "transform-dataset-orders_office_goods-1776086995489"
+          },
+          "width": 192,
+          "height": 66,
+          "selected": false,
+          "dragging": false
+        },
+        {
+          "id": "join-transform-dataset-orders_office_goods-1776086995489-dataset-consolidated_customers-1776086995487",
+          "position": {
+            "x": 895.8637415374832,
+            "y": 298.72879800479296
+          },
+          "type": "datasetNode",
+          "data": {
+            "label": "Join Office Goods",
+            "columns": [
+              {
+                "name": "order_due_date",
+                "type": "Timestamp",
+                "selected": true
+              },
+              {
+                "name": "orderid",
+                "type": "string",
+                "selected": true
+              },
+              {
+                "name": "customer_id",
+                "type": "string",
+                "selected": true
+              },
+              {
+                "name": "status",
+                "type": "string",
+                "selected": true
+              },
+              {
+                "name": "assignee",
+                "type": "string",
+                "selected": true
+              },
+              {
+                "name": "quantity",
+                "type": "integer",
+                "selected": true
+              },
+              {
+                "name": "item_name",
+                "type": "string",
+                "selected": true
+              },
+              {
+                "name": "unit_price",
+                "type": "integer",
+                "selected": true
+              },
+              {
+                "name": "days_until_due",
+                "type": "integer",
+                "selected": true
+              },
+              {
+                "name": "consolidated_customer_id",
+                "type": "string",
+                "selected": true
+              },
+              {
+                "name": "customer_name",
+                "type": "string",
+                "selected": true
+              }
+            ],
+            "datasetId": "join-transform-dataset-orders_office_goods-1776086995489-dataset-consolidated_customers-1776086995487"
+          },
+          "width": 260,
+          "height": 76,
+          "selected": false,
+          "positionAbsolute": {
+            "x": 895.8637415374832,
+            "y": 298.72879800479296
+          },
+          "dragging": false
+        },
+        {
+          "id": "join-transform-dataset-orders_bureau_transactional_system-1776086995488-dataset-consolidated_customers-1776086995487",
+          "position": {
+            "x": 893.7782318086327,
+            "y": 78.17830965504851
+          },
+          "type": "datasetNode",
+          "data": {
+            "label": "Join",
+            "columns": [
+              {
+                "name": "orderid",
+                "type": "string",
+                "selected": true
+              },
+              {
+                "name": "customer_id",
+                "type": "string",
+                "selected": true
+              },
+              {
+                "name": "status",
+                "type": "string",
+                "selected": true
+              },
+              {
+                "name": "assignee",
+                "type": "string",
+                "selected": true
+              },
+              {
+                "name": "quantity",
+                "type": "integer",
+                "selected": true
+              },
+              {
+                "name": "item_name",
+                "type": "string",
+                "selected": true
+              },
+              {
+                "name": "unit_price",
+                "type": "integer",
+                "selected": true
+              },
+              {
+                "name": "order_due_date",
+                "type": "Timestamp",
+                "selected": true
+              },
+              {
+                "name": "days_until_due",
+                "type": "integer",
+                "selected": true
+              },
+              {
+                "name": "consolidated_customer_id",
+                "type": "string",
+                "selected": true
+              },
+              {
+                "name": "customer_name",
+                "type": "string",
+                "selected": true
+              }
+            ],
+            "datasetId": "join-transform-dataset-orders_bureau_transactional_system-1776086995488-dataset-consolidated_customers-1776086995487"
+          },
+          "width": 260,
+          "height": 76,
+          "selected": false,
+          "positionAbsolute": {
+            "x": 893.7782318086327,
+            "y": 78.17830965504851
+          },
+          "dragging": false
+        },
+        {
+          "id": "union-join-transform-dataset-orders_bureau_transactional_system-1776086995488-dataset-consolidated_customers-1776086995487-join-transform-dataset-orders_office_goods-1776086995489-dataset-consolidated_customers-1776086995487",
+          "position": {
+            "x": 1235.8637415374833,
+            "y": 194.37354894710825
+          },
+          "type": "datasetNode",
+          "data": {
+            "label": "Union",
+            "columns": [
+              {
+                "name": "order_due_date",
+                "type": "Timestamp",
+                "selected": true
+              },
+              {
+                "name": "orderid",
+                "type": "string",
+                "selected": true
+              },
+              {
+                "name": "customer_id",
+                "type": "string",
+                "selected": true
+              },
+              {
+                "name": "status",
+                "type": "string",
+                "selected": true
+              },
+              {
+                "name": "assignee",
+                "type": "string",
+                "selected": true
+              },
+              {
+                "name": "quantity",
+                "type": "integer",
+                "selected": true
+              },
+              {
+                "name": "item_name",
+                "type": "string",
+                "selected": true
+              },
+              {
+                "name": "unit_price",
+                "type": "integer",
+                "selected": true
+              },
+              {
+                "name": "days_until_due",
+                "type": "integer",
+                "selected": true
+              },
+              {
+                "name": "consolidated_customer_id",
+                "type": "string",
+                "selected": true
+              },
+              {
+                "name": "customer_name",
+                "type": "string",
+                "selected": true
+              }
+            ],
+            "datasetId": "union-join-transform-dataset-orders_bureau_transactional_system-1776086995488-dataset-consolidated_customers-1776086995487-join-transform-dataset-orders_office_goods-1776086995489-dataset-consolidated_customers-1776086995487",
+            "unionInputNodeIds": [
+              "join-transform-dataset-orders_office_goods-1776086995489-dataset-consolidated_customers-1776086995487",
+              "join-transform-dataset-orders_bureau_transactional_system-1776086995488-dataset-consolidated_customers-1776086995487"
+            ]
+          },
+          "width": 260,
+          "height": 76,
+          "selected": false,
+          "dragging": false,
+          "positionAbsolute": {
+            "x": 1235.8637415374833,
+            "y": 194.37354894710825
+          }
+        },
+        {
+          "id": "output-out-1776087725545",
+          "position": {
+            "x": 1525.8637415374833,
+            "y": 194.37354894710825
+          },
+          "type": "outputNode",
+          "data": {
+            "label": "finale goods dataset",
+            "datasetId": "union-join-transform-dataset-orders_bureau_transactional_system-1776086995488-dataset-consolidated_customers-1776086995487-join-transform-dataset-orders_office_goods-1776086995489-dataset-consolidated_customers-1776086995487",
+            "sourceNodeId": "union-join-transform-dataset-orders_bureau_transactional_system-1776086995488-dataset-consolidated_customers-1776086995487-join-transform-dataset-orders_office_goods-1776086995489-dataset-consolidated_customers-1776086995487",
+            "columns": [
+              {
+                "name": "order_due_date",
+                "type": "Timestamp",
+                "selected": true
+              },
+              {
+                "name": "orderid",
+                "type": "string",
+                "selected": true
+              },
+              {
+                "name": "customer_id",
+                "type": "string",
+                "selected": true
+              },
+              {
+                "name": "status",
+                "type": "string",
+                "selected": true
+              },
+              {
+                "name": "assignee",
+                "type": "string",
+                "selected": true
+              },
+              {
+                "name": "quantity",
+                "type": "integer",
+                "selected": true
+              },
+              {
+                "name": "item_name",
+                "type": "string",
+                "selected": true
+              },
+              {
+                "name": "unit_price",
+                "type": "integer",
+                "selected": true
+              },
+              {
+                "name": "days_until_due",
+                "type": "integer",
+                "selected": true
+              },
+              {
+                "name": "consolidated_customer_id",
+                "type": "string",
+                "selected": true
+              },
+              {
+                "name": "customer_name",
+                "type": "string",
+                "selected": true
+              }
+            ],
+            "status": "deployed"
+          },
+          "width": 192,
+          "height": 69,
+          "selected": true,
+          "dragging": false
+        }
+      ],
+      "edges": [
+        {
+          "id": "edge-dataset-orders_bureau_transactional_system-1776086995488-transform-dataset-orders_bureau_transactional_system-1776086995488",
+          "source": "dataset-orders_bureau_transactional_system-1776086995488",
+          "target": "transform-dataset-orders_bureau_transactional_system-1776086995488",
+          "type": "default",
+          "animated": true,
+          "style": {
+            "stroke": "#9ca3af",
+            "strokeWidth": 2
+          }
+        },
+        {
+          "id": "edge-dataset-orders_office_goods-1776086995489-transform-dataset-orders_office_goods-1776086995489",
+          "source": "dataset-orders_office_goods-1776086995489",
+          "target": "transform-dataset-orders_office_goods-1776086995489",
+          "type": "default",
+          "animated": true,
+          "style": {
+            "stroke": "#9ca3af",
+            "strokeWidth": 2
+          }
+        },
+        {
+          "id": "edge-transform-dataset-orders_office_goods-1776086995489-join-transform-dataset-orders_office_goods-1776086995489-dataset-consolidated_customers-1776086995487",
+          "source": "transform-dataset-orders_office_goods-1776086995489",
+          "target": "join-transform-dataset-orders_office_goods-1776086995489-dataset-consolidated_customers-1776086995487",
+          "type": "default",
+          "animated": true,
+          "style": {
+            "stroke": "#6366f1",
+            "strokeWidth": 2
+          }
+        },
+        {
+          "id": "edge-dataset-consolidated_customers-1776086995487-join-transform-dataset-orders_office_goods-1776086995489-dataset-consolidated_customers-1776086995487",
+          "source": "dataset-consolidated_customers-1776086995487",
+          "target": "join-transform-dataset-orders_office_goods-1776086995489-dataset-consolidated_customers-1776086995487",
+          "type": "default",
+          "animated": true,
+          "style": {
+            "stroke": "#6366f1",
+            "strokeWidth": 2
+          }
+        },
+        {
+          "id": "edge-transform-dataset-orders_bureau_transactional_system-1776086995488-join-transform-dataset-orders_bureau_transactional_system-1776086995488-dataset-consolidated_customers-1776086995487",
+          "source": "transform-dataset-orders_bureau_transactional_system-1776086995488",
+          "target": "join-transform-dataset-orders_bureau_transactional_system-1776086995488-dataset-consolidated_customers-1776086995487",
+          "type": "default",
+          "animated": true,
+          "style": {
+            "stroke": "#6366f1",
+            "strokeWidth": 2
+          }
+        },
+        {
+          "id": "edge-dataset-consolidated_customers-1776086995487-join-transform-dataset-orders_bureau_transactional_system-1776086995488-dataset-consolidated_customers-1776086995487",
+          "source": "dataset-consolidated_customers-1776086995487",
+          "target": "join-transform-dataset-orders_bureau_transactional_system-1776086995488-dataset-consolidated_customers-1776086995487",
+          "type": "default",
+          "animated": true,
+          "style": {
+            "stroke": "#6366f1",
+            "strokeWidth": 2
+          }
+        },
+        {
+          "id": "edge-join-transform-dataset-orders_office_goods-1776086995489-dataset-consolidated_customers-1776086995487-union-join-transform-dataset-orders_bureau_transactional_system-1776086995488-dataset-consolidated_customers-1776086995487-join-transform-dataset-orders_office_goods-1776086995489-dataset-consolidated_customers-1776086995487",
+          "source": "join-transform-dataset-orders_office_goods-1776086995489-dataset-consolidated_customers-1776086995487",
+          "target": "union-join-transform-dataset-orders_bureau_transactional_system-1776086995488-dataset-consolidated_customers-1776086995487-join-transform-dataset-orders_office_goods-1776086995489-dataset-consolidated_customers-1776086995487",
+          "type": "default",
+          "animated": true,
+          "style": {
+            "stroke": "#dc2626",
+            "strokeWidth": 2
+          }
+        },
+        {
+          "id": "edge-join-transform-dataset-orders_bureau_transactional_system-1776086995488-dataset-consolidated_customers-1776086995487-union-join-transform-dataset-orders_bureau_transactional_system-1776086995488-dataset-consolidated_customers-1776086995487-join-transform-dataset-orders_office_goods-1776086995489-dataset-consolidated_customers-1776086995487",
+          "source": "join-transform-dataset-orders_bureau_transactional_system-1776086995488-dataset-consolidated_customers-1776086995487",
+          "target": "union-join-transform-dataset-orders_bureau_transactional_system-1776086995488-dataset-consolidated_customers-1776086995487-join-transform-dataset-orders_office_goods-1776086995489-dataset-consolidated_customers-1776086995487",
+          "type": "default",
+          "animated": true,
+          "style": {
+            "stroke": "#dc2626",
+            "strokeWidth": 2
+          }
+        },
+        {
+          "id": "edge-union-join-transform-dataset-orders_bureau_transactional_system-1776086995488-dataset-consolidated_customers-1776086995487-join-transform-dataset-orders_office_goods-1776086995489-dataset-consolidated_customers-1776086995487-output-out-1776087725545",
+          "source": "union-join-transform-dataset-orders_bureau_transactional_system-1776086995488-dataset-consolidated_customers-1776086995487-join-transform-dataset-orders_office_goods-1776086995489-dataset-consolidated_customers-1776086995487",
+          "target": "output-out-1776087725545",
+          "type": "default",
+          "animated": true,
+          "style": {
+            "stroke": "#64748b",
+            "strokeWidth": 2
+          }
+        }
+      ]
+    }
+  },
+  "outputs": [
+    {
+      "id": "out-1776087725545",
+      "nodeId": "output-out-1776087725545",
+      "sourceNodeId": "union-join-transform-dataset-orders_bureau_transactional_system-1776086995488-dataset-consolidated_customers-1776086995487-join-transform-dataset-orders_office_goods-1776086995489-dataset-consolidated_customers-1776086995487",
+      "name": "finale goods dataset",
+      "fileName": "finale_goods_dataset.csv",
+      "columns": [
+        {
+          "name": "order_due_date",
+          "type": "Timestamp",
+          "selected": true
+        },
+        {
+          "name": "orderid",
+          "type": "string",
+          "selected": true
+        },
+        {
+          "name": "customer_id",
+          "type": "string",
+          "selected": true
+        },
+        {
+          "name": "status",
+          "type": "string",
+          "selected": true
+        },
+        {
+          "name": "assignee",
+          "type": "string",
+          "selected": true
+        },
+        {
+          "name": "quantity",
+          "type": "integer",
+          "selected": true
+        },
+        {
+          "name": "item_name",
+          "type": "string",
+          "selected": true
+        },
+        {
+          "name": "unit_price",
+          "type": "integer",
+          "selected": true
+        },
+        {
+          "name": "days_until_due",
+          "type": "integer",
+          "selected": true
+        },
+        {
+          "name": "consolidated_customer_id",
+          "type": "string",
+          "selected": true
+        },
+        {
+          "name": "customer_name",
+          "type": "string",
+          "selected": true
+        }
+      ],
+      "selectedColumnNames": [
+        "order_due_date",
+        "orderid",
+        "customer_id",
+        "status",
+        "assignee",
+        "quantity",
+        "item_name",
+        "unit_price",
+        "days_until_due",
+        "consolidated_customer_id",
+        "customer_name"
+      ],
+      "status": "deployed",
+      "deployedAt": "2026-04-13T13:42:50.681Z",
+      "filePath": "C:\\Users\\YASHWANTH\\Projects\\Y-AIP\\data\\workspaces\\test2\\finale_goods_dataset.csv",
+      "rowCount": 118
+    }
+  ],
+  "deployState": {
+    "status": "deployed",
+    "pipelineId": "n3mb0g",
+    "outputs": [
+      {
+        "id": "out-1776087725545",
+        "name": "finale goods dataset",
+        "fileName": "finale_goods_dataset.csv",
+        "filePath": "C:\\Users\\YASHWANTH\\Projects\\Y-AIP\\data\\workspaces\\test2\\finale_goods_dataset.csv",
+        "rowCount": 118,
+        "deployedAt": "2026-04-13T13:42:50.681Z"
+      }
+    ],
+    "lastDeploymentAt": "2026-04-13T13:42:50.681Z"
+  },
+  "transforms": [],
+  "activeBranch": "Main",
+  "savedAt": "2026-04-13T13:43:04.650Z"
+}

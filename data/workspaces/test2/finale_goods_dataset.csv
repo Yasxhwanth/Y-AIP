@@ -1,0 +1,119 @@
+order_due_date,orderid,customer_id,status,assignee,quantity,item_name,unit_price,days_until_due,consolidated_customer_id,customer_name
+7/30/23,A74270364-fc220883-6a6e-4eec-b8a9-d5ea58d43c53,A56613925,assigned,Laverne Koss,19,Stapler,60,59,6bf2afa9-1cda-484f-8dc8-48322f3e1d1c,"Watsica, Turner and Toy"
+6/17/23,A74270364-fb778d8b-9a3b-4cf2-8e6b-0b33746886f7,A56613925,assigned,Laverne Koss,53,30 Monitor,90,16,cb4f9dcc-b1fa-46d7-9c3d-b072d325554c,Doyle - Langworth
+7/6/23,A74270364-fd748d48-699d-4032-848a-e5a710e638df,A56613925,assigned,Laverne Koss,19,Paper Shredder,100,35,eabbfb77-391b-4a66-94cf-fb1d70bdc693,Hessel - Muller
+6/19/23,A74270364-c206b101-f8b3-4bbe-a1f4-c674dc3124c8,A56613925,assigned,Laverne Koss,50,Paper Clips,30,18,94dfd2c0-8f92-4bb2-a97b-da87531706b4,Boyer LLC
+7/6/23,A73728056-15357af5-0273-465c-81d2-65777835407e,A56613925,closed,Latoya Gulgowski,60,Multifunction Printer,110,35,62497fd6-14bb-4a67-abb5-2cd920b19fd1,Runte - Hintz
+7/29/23,A73728056-fb778d8b-9a3b-4cf2-8e6b-0b33746886f7,A56613925,closed,Latoya Gulgowski,24,30 Monitor,90,58,90cef63e-0741-4953-a390-8ec1dd54ab1c,Fahey and Sons
+6/2/23,A73728056-2876d968-98e4-4e20-92a9-4f9d45c3f7d4,A56613925,closed,Latoya Gulgowski,27,A4 Paper,20,1,07c73394-30e8-4c03-a0f4-c981a2df2ebb,"Hessel, Conroy and Reilly"
+7/1/23,A73728056-bb6408d1-d9c3-43b7-b5c4-986239d8c426,A56613925,closed,Latoya Gulgowski,47,Office Desk,40,30,3dba68cb-2fd6-4aa4-a9ce-17908d898344,"Langosh, Wilderman and Hoppe"
+7/5/23,A73728056-e8b47bbe-990b-48a6-a7c6-d15732f85e06,A56613925,closed,Latoya Gulgowski,55,Printer,80,34,9ca5e6c1-dd6b-4bf9-964b-d6808256af86,Keeling - Kuhn
+7/8/23,A73728056-fd748d48-699d-4032-848a-e5a710e638df,A56613925,closed,Latoya Gulgowski,26,Paper Shredder,100,37,c0beca06-ea1a-41c7-82dd-0566780cc668,Sporer - Terry
+7/18/23,A98415914-2876d968-98e4-4e20-92a9-4f9d45c3f7d4,A56613925,assigned,Kristen Mohr,46,A4 Paper,20,47,3c474b5a-e256-4f65-a2f0-302e3a00e48c,Schamberger - Medhurst
+6/26/23,A98415914-6d3cbc43-887b-4d37-86a7-cc4246dcbdbe,A56613925,assigned,Kristen Mohr,52,File Folders,70,25,cc52d503-9fd2-448f-b5e4-a4a72de27971,Romaguera Inc
+6/21/23,A98415914-e8b47bbe-990b-48a6-a7c6-d15732f85e06,A56613925,assigned,Kristen Mohr,13,Printer,80,20,f9d48f25-46b6-4c8f-bc0a-062db191575a,Buckridge Inc
+6/5/23,A98415914-42d95fcf-a611-4f97-ba88-20e651645b96,A56613925,assigned,Kristen Mohr,32,Office Chair,50,4,c3446c26-832c-4d3e-bd89-046bd43e4aa4,"Dare, Dare and Smith"
+7/19/23,A29336505-fb778d8b-9a3b-4cf2-8e6b-0b33746886f7,A56613925,closed,Taylor Hilll,22,30 Monitor,90,48,9c5e0213-1b3f-43d7-9e73-cedb1b38b243,"Purdy, Jakubowski and Schaden"
+7/3/23,A29336505-15357af5-0273-465c-81d2-65777835407e,A56613925,closed,Taylor Hilll,26,Multifunction Printer,110,32,b9ea9f89-1985-44db-905a-266ce3bd0303,Gottlieb - Auer
+7/19/23,A29336505-bb6408d1-d9c3-43b7-b5c4-986239d8c426,A56613925,closed,Taylor Hilll,32,Office Desk,40,48,9079871a-e79f-49df-a6ec-d01be1b2464b,Howe Group
+7/9/23,A29336505-c206b101-f8b3-4bbe-a1f4-c674dc3124c8,A56613925,closed,Taylor Hilll,34,Paper Clips,30,38,ca79e915-18af-43da-824f-b1284ceb2569,Kris - Jakubowski
+6/29/23,A29336505-6d3cbc43-887b-4d37-86a7-cc4246dcbdbe,A56613925,closed,Taylor Hilll,15,File Folders,70,28,19adcf8f-4f35-48a9-b9d8-3ea9f5f4cac5,Zboncak Inc
+7/26/23,A29336505-42d95fcf-a611-4f97-ba88-20e651645b96,A56613925,closed,Taylor Hilll,56,Office Chair,50,55,0517332c-697c-47f3-aa52-3770c851067f,Kertzmann - Greenfelder
+7/2/23,A73058303-15357af5-0273-465c-81d2-65777835407e,A56613925,assigned,Alfredo Bins,37,Multifunction Printer,110,31,beb5deb3-f9e6-4610-8e75-8891f8feda80,Kautzer - Kertzmann
+6/2/23,A73058303-e8b47bbe-990b-48a6-a7c6-d15732f85e06,A56613925,assigned,Alfredo Bins,41,Printer,80,1,ca94b28a-1393-42d8-a3ad-95867da620eb,"Heaney, Mills and Mayer"
+7/10/23,A73058303-fc220883-6a6e-4eec-b8a9-d5ea58d43c53,A56613925,assigned,Alfredo Bins,51,Stapler,60,39,bbfb5080-fa1a-433f-b5e4-abbf0ba7b23f,Marquardt - Bailey
+7/23/23,A73058303-42d95fcf-a611-4f97-ba88-20e651645b96,A56613925,assigned,Alfredo Bins,35,Office Chair,50,52,6fd6e8ab-3b15-4970-98af-48ac993c1a4b,"Bartell, Farrell and Breitenberg"
+6/3/23,A73058303-bb6408d1-d9c3-43b7-b5c4-986239d8c426,A56613925,assigned,Alfredo Bins,16,Office Desk,40,2,2fea7bde-a2d9-4b17-bd19-ff9db8ac4214,"Thiel, Lindgren and Heaney"
+6/24/23,A73058303-fd748d48-699d-4032-848a-e5a710e638df,A56613925,assigned,Alfredo Bins,53,Paper Shredder,100,23,abb464b4-5b6e-47e6-8686-11752481d6fa,"Brekke, Hahn and Stroman"
+6/24/23,A4120267-15357af5-0273-465c-81d2-65777835407e,A56613925,assigned,John Dooley,40,Multifunction Printer,110,23,c412823e-a899-4a2a-8f27-33ee68a29980,Hegmann and Sons
+6/15/23,A4120267-fb778d8b-9a3b-4cf2-8e6b-0b33746886f7,A56613925,assigned,John Dooley,55,30 Monitor,90,14,8c2b3cbd-c578-44d0-a04e-e90681738cd7,"Corkery, Cummings and McCullough"
+6/18/23,A4120267-c206b101-f8b3-4bbe-a1f4-c674dc3124c8,A56613925,assigned,John Dooley,54,Paper Clips,30,17,891dffa3-3e6b-4ad5-b5b5-1ba037d988d2,Dibbert Inc
+7/4/23,A85258431-2876d968-98e4-4e20-92a9-4f9d45c3f7d4,A2961593,assigned,Taylor Hilll,12,A4 Paper,20,33,b38352f4-2e78-4530-a94f-810dccb0a762,"King, Feeney and Kutch"
+7/22/23,A85258431-e8b47bbe-990b-48a6-a7c6-d15732f85e06,A2961593,assigned,Taylor Hilll,23,Printer,80,51,5f5a9fd4-3445-491c-8a3d-d422d5433a84,Effertz LLC
+6/28/23,A85258431-fc220883-6a6e-4eec-b8a9-d5ea58d43c53,A2961593,assigned,Taylor Hilll,25,Stapler,60,27,7daf8076-631c-4d25-ba8d-8d7047c584ad,Abbott - Ward
+6/9/23,A85258431-6d3cbc43-887b-4d37-86a7-cc4246dcbdbe,A2961593,assigned,Taylor Hilll,17,File Folders,70,8,672d3a1d-d7c2-4fca-bf22-80b9795718d3,"Haley, Hackett and Torp"
+7/19/23,A58653993-6d3cbc43-887b-4d37-86a7-cc4246dcbdbe,A2961593,assigned,Laverne Koss,50,File Folders,70,48,2e0ef232-415c-4a46-8ea6-65c4f9392982,Mueller Inc
+7/4/23,A4583071-bb6408d1-d9c3-43b7-b5c4-986239d8c426,A2961593,assigned,Lorraine Bahringer,6,Office Desk,40,33,bab3e85f-ef73-47ff-8175-7e84914a306c,Hills and Sons
+6/9/23,A4583071-fb778d8b-9a3b-4cf2-8e6b-0b33746886f7,A2961593,assigned,Lorraine Bahringer,52,30 Monitor,90,8,942bef52-5a85-4110-b887-1b98b33043f7,Feil Group
+6/1/23,A4583071-42d95fcf-a611-4f97-ba88-20e651645b96,A2961593,assigned,Lorraine Bahringer,52,Office Chair,50,0,f092de1a-abac-47a5-b5d8-e35cc912dcdb,"Marquardt, Koepp and Mante"
+6/20/23,A4583071-fd748d48-699d-4032-848a-e5a710e638df,A2961593,assigned,Lorraine Bahringer,45,Paper Shredder,100,19,979d8626-cced-4b92-929e-ab11025e5df7,"Mann, Walter and Orn"
+6/26/23,A4583071-2876d968-98e4-4e20-92a9-4f9d45c3f7d4,A2961593,assigned,Lorraine Bahringer,44,A4 Paper,20,25,f84a6461-3112-4286-b0dd-8f439c13520e,Sauer - Fahey
+6/18/23,A4583071-c206b101-f8b3-4bbe-a1f4-c674dc3124c8,A2961593,assigned,Lorraine Bahringer,22,Paper Clips,30,17,33963d2c-5f09-44d1-a6a6-70de26ea86f8,"Renner, Hammes and Corwin"
+6/27/23,A88241458-c206b101-f8b3-4bbe-a1f4-c674dc3124c8,A2890159,assigned,Latoya Gulgowski,60,Paper Clips,30,26,4e794a0f-a364-4b34-bd57-9faf88356793,Goyette - Greenfelder
+7/18/23,A88241458-fb778d8b-9a3b-4cf2-8e6b-0b33746886f7,A2890159,assigned,Latoya Gulgowski,14,30 Monitor,90,47,afbebbc1-77e2-488f-81cb-3d951e209cce,"Barrows, Schimmel and Thiel"
+6/11/23,A88241458-fd748d48-699d-4032-848a-e5a710e638df,A2890159,assigned,Latoya Gulgowski,12,Paper Shredder,100,10,791f3bca-51b7-4041-b3cd-44cc30bd08b6,Hansen - Hermann
+6/3/23,A88241458-15357af5-0273-465c-81d2-65777835407e,A2890159,assigned,Latoya Gulgowski,40,Multifunction Printer,110,2,4af8e2f4-453c-4daf-a8db-8815e3a37111,Wolff Group
+6/11/23,A88241458-6d3cbc43-887b-4d37-86a7-cc4246dcbdbe,A2890159,assigned,Latoya Gulgowski,30,File Folders,70,10,b9ff054a-c42f-4a39-88c0-4a17d6a3e2eb,Kirlin - Ledner
+6/9/23,A88241458-bb6408d1-d9c3-43b7-b5c4-986239d8c426,A2890159,assigned,Latoya Gulgowski,26,Office Desk,40,8,f264e4a1-f883-4ca5-83a3-10f95839c068,"Maggio, Gislason and Stiedemann"
+7/6/23,A88241458-e8b47bbe-990b-48a6-a7c6-d15732f85e06,A2890159,assigned,Latoya Gulgowski,33,Printer,80,35,c45dadaa-e4d9-4801-b63d-25621b26326e,Steuber LLC
+6/30/23,A16927798-42d95fcf-a611-4f97-ba88-20e651645b96,A2890159,open,,23,Office Chair,50,29,5e195961-c31f-4299-850c-39cfef378a5b,"Crist, Rau and Borer"
+7/17/23,A16927798-fb778d8b-9a3b-4cf2-8e6b-0b33746886f7,A2890159,open,,17,30 Monitor,90,46,f3efa146-88a1-44bd-9581-8619e5e92bf4,Cummerata Inc
+7/22/23,A16927798-fd748d48-699d-4032-848a-e5a710e638df,A2890159,open,,19,Paper Shredder,100,51,fc00863b-9823-4da9-bb12-ee178caf48b0,Schinner and Sons
+6/9/23,A68972858-15357af5-0273-465c-81d2-65777835407e,A2890159,assigned,Erick Quigley,55,Multifunction Printer,110,8,78c450c7-f356-4970-96e0-57e6f98240a3,Waelchi LLC
+7/19/23,A68972858-bb6408d1-d9c3-43b7-b5c4-986239d8c426,A2890159,assigned,Erick Quigley,57,Office Desk,40,48,da833a32-127d-4ca5-a8e3-eac0003cb60f,Muller Inc
+6/17/23,A40736300-fc220883-6a6e-4eec-b8a9-d5ea58d43c53,A2890159,open,,6,Stapler,60,16,861eb39b-9f54-46b0-b3fc-3c611c8f747d,"Pfeffer, Torphy and Homenick"
+7/21/23,A40736300-6d3cbc43-887b-4d37-86a7-cc4246dcbdbe,A2890159,open,,7,File Folders,70,50,6667680a-7c9e-11ee-b962-0242ac120002,ACME Consolidated US
+7/23/23,A40736300-c206b101-f8b3-4bbe-a1f4-c674dc3124c8,A2890159,open,,23,Paper Clips,30,52,6a0f29f5-5c51-479f-a1de-677c4a6f6bbd,ACME Consolidated Europe
+6/1/23,A40736300-fd748d48-699d-4032-848a-e5a710e638df,A2890159,open,,16,Paper Shredder,100,0,23b721e2-ac9a-47d6-83d9-940b388cba01,ACME LATAM
+7/3/23,A40736300-fb778d8b-9a3b-4cf2-8e6b-0b33746886f7,A2890159,open,,46,30 Monitor,90,32,58ef031d-f89b-4938-93e6-3406a243eca5,ACME Australia
+6/23/23,A40736300-15357af5-0273-465c-81d2-65777835407e,A2890159,open,,50,Multifunction Printer,110,22,51e98bd7-ed38-47b1-b8ec-59581d3e4bcb,ACME North America
+7/3/23,A40736300-2876d968-98e4-4e20-92a9-4f9d45c3f7d4,A2890159,open,,11,A4 Paper,20,32,85084e68-c47c-4b31-80a4-425397a2927c,ACME Japan
+7/30/23,9266e88b-cc45-49b2-85d3-e8c5b3a8322ffc220883-6a6e-4eec-b8a9-d5ea58d43c53,c3bd1328-d18b-4b5a-8545-df261586ea8e,closed,Kristen Mohr,54,Stapler,60,59,6bf2afa9-1cda-484f-8dc8-48322f3e1d1c,"Watsica, Turner and Toy"
+6/17/23,9266e88b-cc45-49b2-85d3-e8c5b3a8322fe8b47bbe-990b-48a6-a7c6-d15732f85e06,c3bd1328-d18b-4b5a-8545-df261586ea8e,closed,Kristen Mohr,11,Printer,80,16,cb4f9dcc-b1fa-46d7-9c3d-b072d325554c,Doyle - Langworth
+7/6/23,9266e88b-cc45-49b2-85d3-e8c5b3a8322ffd748d48-699d-4032-848a-e5a710e638df,c3bd1328-d18b-4b5a-8545-df261586ea8e,closed,Kristen Mohr,74,Paper Shredder,100,35,eabbfb77-391b-4a66-94cf-fb1d70bdc693,Hessel - Muller
+6/19/23,9266e88b-cc45-49b2-85d3-e8c5b3a8322ffb778d8b-9a3b-4cf2-8e6b-0b33746886f7,c3bd1328-d18b-4b5a-8545-df261586ea8e,closed,Kristen Mohr,57,30 Monitor,90,18,94dfd2c0-8f92-4bb2-a97b-da87531706b4,Boyer LLC
+7/6/23,656f0f20-b29f-46d3-849c-a7ec28df58f4e8b47bbe-990b-48a6-a7c6-d15732f85e06,c3bd1328-d18b-4b5a-8545-df261586ea8e,closed,Kristen Mohr,27,Printer,80,35,62497fd6-14bb-4a67-abb5-2cd920b19fd1,Runte - Hintz
+7/29/23,656f0f20-b29f-46d3-849c-a7ec28df58f4c206b101-f8b3-4bbe-a1f4-c674dc3124c8,c3bd1328-d18b-4b5a-8545-df261586ea8e,closed,Kristen Mohr,100,Paper Clips,30,58,90cef63e-0741-4953-a390-8ec1dd54ab1c,Fahey and Sons
+6/2/23,656f0f20-b29f-46d3-849c-a7ec28df58f415357af5-0273-465c-81d2-65777835407e,c3bd1328-d18b-4b5a-8545-df261586ea8e,closed,Kristen Mohr,14,Multifunction Printer,110,1,07c73394-30e8-4c03-a0f4-c981a2df2ebb,"Hessel, Conroy and Reilly"
+7/1/23,656f0f20-b29f-46d3-849c-a7ec28df58f46d3cbc43-887b-4d37-86a7-cc4246dcbdbe,c3bd1328-d18b-4b5a-8545-df261586ea8e,closed,Kristen Mohr,35,File Folders,70,30,3dba68cb-2fd6-4aa4-a9ce-17908d898344,"Langosh, Wilderman and Hoppe"
+7/5/23,656f0f20-b29f-46d3-849c-a7ec28df58f4bb6408d1-d9c3-43b7-b5c4-986239d8c426,c3bd1328-d18b-4b5a-8545-df261586ea8e,closed,Kristen Mohr,21,Office Desk,40,34,9ca5e6c1-dd6b-4bf9-964b-d6808256af86,Keeling - Kuhn
+7/8/23,656f0f20-b29f-46d3-849c-a7ec28df58f4fb778d8b-9a3b-4cf2-8e6b-0b33746886f7,c3bd1328-d18b-4b5a-8545-df261586ea8e,closed,Kristen Mohr,71,30 Monitor,90,37,c0beca06-ea1a-41c7-82dd-0566780cc668,Sporer - Terry
+7/18/23,656f0f20-b29f-46d3-849c-a7ec28df58f4fc220883-6a6e-4eec-b8a9-d5ea58d43c53,c3bd1328-d18b-4b5a-8545-df261586ea8e,closed,Kristen Mohr,95,Stapler,60,47,3c474b5a-e256-4f65-a2f0-302e3a00e48c,Schamberger - Medhurst
+6/26/23,656f0f20-b29f-46d3-849c-a7ec28df58f442d95fcf-a611-4f97-ba88-20e651645b96,c3bd1328-d18b-4b5a-8545-df261586ea8e,closed,Kristen Mohr,14,Office Chair,50,25,cc52d503-9fd2-448f-b5e4-a4a72de27971,Romaguera Inc
+6/21/23,a699c746-bd70-496e-8622-aeea06f0520842d95fcf-a611-4f97-ba88-20e651645b96,c3bd1328-d18b-4b5a-8545-df261586ea8e,open,,32,Office Chair,50,20,f9d48f25-46b6-4c8f-bc0a-062db191575a,Buckridge Inc
+6/5/23,a699c746-bd70-496e-8622-aeea06f052082876d968-98e4-4e20-92a9-4f9d45c3f7d4,c3bd1328-d18b-4b5a-8545-df261586ea8e,open,,19,A4 Paper,20,4,c3446c26-832c-4d3e-bd89-046bd43e4aa4,"Dare, Dare and Smith"
+7/19/23,a699c746-bd70-496e-8622-aeea06f05208fb778d8b-9a3b-4cf2-8e6b-0b33746886f7,c3bd1328-d18b-4b5a-8545-df261586ea8e,open,,93,30 Monitor,90,48,9c5e0213-1b3f-43d7-9e73-cedb1b38b243,"Purdy, Jakubowski and Schaden"
+7/3/23,4a6677c1-0af2-4272-b078-6607a73f966f2876d968-98e4-4e20-92a9-4f9d45c3f7d4,c3bd1328-d18b-4b5a-8545-df261586ea8e,closed,John Dooley,38,A4 Paper,20,32,b9ea9f89-1985-44db-905a-266ce3bd0303,Gottlieb - Auer
+7/19/23,4a6677c1-0af2-4272-b078-6607a73f966ffc220883-6a6e-4eec-b8a9-d5ea58d43c53,c3bd1328-d18b-4b5a-8545-df261586ea8e,closed,John Dooley,94,Stapler,60,48,9079871a-e79f-49df-a6ec-d01be1b2464b,Howe Group
+7/9/23,4a6677c1-0af2-4272-b078-6607a73f966f15357af5-0273-465c-81d2-65777835407e,c3bd1328-d18b-4b5a-8545-df261586ea8e,closed,John Dooley,15,Multifunction Printer,110,38,ca79e915-18af-43da-824f-b1284ceb2569,Kris - Jakubowski
+6/29/23,4a6677c1-0af2-4272-b078-6607a73f966fe8b47bbe-990b-48a6-a7c6-d15732f85e06,c3bd1328-d18b-4b5a-8545-df261586ea8e,closed,John Dooley,75,Printer,80,28,19adcf8f-4f35-48a9-b9d8-3ea9f5f4cac5,Zboncak Inc
+7/26/23,eefb966c-9136-4e09-8bfa-bb97fdd7a031e8b47bbe-990b-48a6-a7c6-d15732f85e06,c3bd1328-d18b-4b5a-8545-df261586ea8e,open,,62,Printer,80,55,0517332c-697c-47f3-aa52-3770c851067f,Kertzmann - Greenfelder
+7/2/23,eefb966c-9136-4e09-8bfa-bb97fdd7a031fb778d8b-9a3b-4cf2-8e6b-0b33746886f7,c3bd1328-d18b-4b5a-8545-df261586ea8e,open,,93,30 Monitor,90,31,beb5deb3-f9e6-4610-8e75-8891f8feda80,Kautzer - Kertzmann
+6/2/23,eefb966c-9136-4e09-8bfa-bb97fdd7a031c206b101-f8b3-4bbe-a1f4-c674dc3124c8,c3bd1328-d18b-4b5a-8545-df261586ea8e,open,,14,Paper Clips,30,1,ca94b28a-1393-42d8-a3ad-95867da620eb,"Heaney, Mills and Mayer"
+7/10/23,eefb966c-9136-4e09-8bfa-bb97fdd7a031bb6408d1-d9c3-43b7-b5c4-986239d8c426,c3bd1328-d18b-4b5a-8545-df261586ea8e,open,,62,Office Desk,40,39,bbfb5080-fa1a-433f-b5e4-abbf0ba7b23f,Marquardt - Bailey
+7/23/23,eefb966c-9136-4e09-8bfa-bb97fdd7a03115357af5-0273-465c-81d2-65777835407e,c3bd1328-d18b-4b5a-8545-df261586ea8e,open,,36,Multifunction Printer,110,52,6fd6e8ab-3b15-4970-98af-48ac993c1a4b,"Bartell, Farrell and Breitenberg"
+6/3/23,eefb966c-9136-4e09-8bfa-bb97fdd7a03142d95fcf-a611-4f97-ba88-20e651645b96,c3bd1328-d18b-4b5a-8545-df261586ea8e,open,,79,Office Chair,50,2,2fea7bde-a2d9-4b17-bd19-ff9db8ac4214,"Thiel, Lindgren and Heaney"
+6/24/23,7c80fe60-ea66-40b9-9d7f-9566c7126af0c206b101-f8b3-4bbe-a1f4-c674dc3124c8,1787b60b-06c8-4d33-934b-85ca1ba46b80,assigned,Gail Weber,44,Paper Clips,30,23,abb464b4-5b6e-47e6-8686-11752481d6fa,"Brekke, Hahn and Stroman"
+6/24/23,7c80fe60-ea66-40b9-9d7f-9566c7126af0e8b47bbe-990b-48a6-a7c6-d15732f85e06,1787b60b-06c8-4d33-934b-85ca1ba46b80,assigned,Gail Weber,19,Printer,80,23,c412823e-a899-4a2a-8f27-33ee68a29980,Hegmann and Sons
+6/15/23,4706b330-500d-4a17-9a1b-14a6414efc6515357af5-0273-465c-81d2-65777835407e,27564272-14f6-4456-9e26-0f24fa7aa627,assigned,Erick Quigley,92,Multifunction Printer,110,14,8c2b3cbd-c578-44d0-a04e-e90681738cd7,"Corkery, Cummings and McCullough"
+6/18/23,4706b330-500d-4a17-9a1b-14a6414efc65fc220883-6a6e-4eec-b8a9-d5ea58d43c53,27564272-14f6-4456-9e26-0f24fa7aa627,assigned,Erick Quigley,94,Stapler,60,17,891dffa3-3e6b-4ad5-b5b5-1ba037d988d2,Dibbert Inc
+7/4/23,859bbe3e-398c-4126-bbac-352f9c106c9942d95fcf-a611-4f97-ba88-20e651645b96,27564272-14f6-4456-9e26-0f24fa7aa627,open,,12,Office Chair,50,33,b38352f4-2e78-4530-a94f-810dccb0a762,"King, Feeney and Kutch"
+7/22/23,859bbe3e-398c-4126-bbac-352f9c106c992876d968-98e4-4e20-92a9-4f9d45c3f7d4,27564272-14f6-4456-9e26-0f24fa7aa627,open,,61,A4 Paper,20,51,5f5a9fd4-3445-491c-8a3d-d422d5433a84,Effertz LLC
+6/28/23,2c32e4bd-5938-469d-9e0f-3263dce7d336fb778d8b-9a3b-4cf2-8e6b-0b33746886f7,27564272-14f6-4456-9e26-0f24fa7aa627,closed,Gail Weber,35,30 Monitor,90,27,7daf8076-631c-4d25-ba8d-8d7047c584ad,Abbott - Ward
+6/9/23,2c32e4bd-5938-469d-9e0f-3263dce7d3362876d968-98e4-4e20-92a9-4f9d45c3f7d4,27564272-14f6-4456-9e26-0f24fa7aa627,closed,Gail Weber,29,A4 Paper,20,8,672d3a1d-d7c2-4fca-bf22-80b9795718d3,"Haley, Hackett and Torp"
+7/19/23,2c32e4bd-5938-469d-9e0f-3263dce7d33615357af5-0273-465c-81d2-65777835407e,27564272-14f6-4456-9e26-0f24fa7aa627,closed,Gail Weber,67,Multifunction Printer,110,48,2e0ef232-415c-4a46-8ea6-65c4f9392982,Mueller Inc
+7/4/23,2c32e4bd-5938-469d-9e0f-3263dce7d33642d95fcf-a611-4f97-ba88-20e651645b96,27564272-14f6-4456-9e26-0f24fa7aa627,closed,Gail Weber,75,Office Chair,50,33,bab3e85f-ef73-47ff-8175-7e84914a306c,Hills and Sons
+6/9/23,ef45eedd-3a41-40e4-b203-d6267c2665146d3cbc43-887b-4d37-86a7-cc4246dcbdbe,27564272-14f6-4456-9e26-0f24fa7aa627,assigned,Latoya Gulgowski,39,File Folders,70,8,942bef52-5a85-4110-b887-1b98b33043f7,Feil Group
+6/1/23,ef45eedd-3a41-40e4-b203-d6267c2665142876d968-98e4-4e20-92a9-4f9d45c3f7d4,27564272-14f6-4456-9e26-0f24fa7aa627,assigned,Latoya Gulgowski,37,A4 Paper,20,0,f092de1a-abac-47a5-b5d8-e35cc912dcdb,"Marquardt, Koepp and Mante"
+6/20/23,ef45eedd-3a41-40e4-b203-d6267c266514bb6408d1-d9c3-43b7-b5c4-986239d8c426,27564272-14f6-4456-9e26-0f24fa7aa627,assigned,Latoya Gulgowski,32,Office Desk,40,19,979d8626-cced-4b92-929e-ab11025e5df7,"Mann, Walter and Orn"
+6/26/23,57ef5bb2-04ac-4b7b-91db-c8e928f20359fd748d48-699d-4032-848a-e5a710e638df,27564272-14f6-4456-9e26-0f24fa7aa627,closed,Lorraine Bahringer,54,Paper Shredder,100,25,f84a6461-3112-4286-b0dd-8f439c13520e,Sauer - Fahey
+6/18/23,57ef5bb2-04ac-4b7b-91db-c8e928f203596d3cbc43-887b-4d37-86a7-cc4246dcbdbe,27564272-14f6-4456-9e26-0f24fa7aa627,closed,Lorraine Bahringer,69,File Folders,70,17,33963d2c-5f09-44d1-a6a6-70de26ea86f8,"Renner, Hammes and Corwin"
+6/27/23,57ef5bb2-04ac-4b7b-91db-c8e928f20359fc220883-6a6e-4eec-b8a9-d5ea58d43c53,27564272-14f6-4456-9e26-0f24fa7aa627,closed,Lorraine Bahringer,82,Stapler,60,26,4e794a0f-a364-4b34-bd57-9faf88356793,Goyette - Greenfelder
+7/18/23,57ef5bb2-04ac-4b7b-91db-c8e928f2035915357af5-0273-465c-81d2-65777835407e,27564272-14f6-4456-9e26-0f24fa7aa627,closed,Lorraine Bahringer,52,Multifunction Printer,110,47,afbebbc1-77e2-488f-81cb-3d951e209cce,"Barrows, Schimmel and Thiel"
+6/11/23,57ef5bb2-04ac-4b7b-91db-c8e928f20359fb778d8b-9a3b-4cf2-8e6b-0b33746886f7,27564272-14f6-4456-9e26-0f24fa7aa627,closed,Lorraine Bahringer,28,30 Monitor,90,10,791f3bca-51b7-4041-b3cd-44cc30bd08b6,Hansen - Hermann
+6/3/23,57ef5bb2-04ac-4b7b-91db-c8e928f20359c206b101-f8b3-4bbe-a1f4-c674dc3124c8,27564272-14f6-4456-9e26-0f24fa7aa627,closed,Lorraine Bahringer,95,Paper Clips,30,2,4af8e2f4-453c-4daf-a8db-8815e3a37111,Wolff Group
+6/11/23,2e1ccda6-405b-47a8-a7f8-4f3d960be9bb15357af5-0273-465c-81d2-65777835407e,27564272-14f6-4456-9e26-0f24fa7aa627,open,,20,Multifunction Printer,110,10,b9ff054a-c42f-4a39-88c0-4a17d6a3e2eb,Kirlin - Ledner
+6/9/23,2e1ccda6-405b-47a8-a7f8-4f3d960be9bbc206b101-f8b3-4bbe-a1f4-c674dc3124c8,27564272-14f6-4456-9e26-0f24fa7aa627,open,,58,Paper Clips,30,8,f264e4a1-f883-4ca5-83a3-10f95839c068,"Maggio, Gislason and Stiedemann"
+7/6/23,2e1ccda6-405b-47a8-a7f8-4f3d960be9bbe8b47bbe-990b-48a6-a7c6-d15732f85e06,27564272-14f6-4456-9e26-0f24fa7aa627,open,,17,Printer,80,35,c45dadaa-e4d9-4801-b63d-25621b26326e,Steuber LLC
+6/30/23,2e1ccda6-405b-47a8-a7f8-4f3d960be9bb42d95fcf-a611-4f97-ba88-20e651645b96,27564272-14f6-4456-9e26-0f24fa7aa627,open,,37,Office Chair,50,29,5e195961-c31f-4299-850c-39cfef378a5b,"Crist, Rau and Borer"
+7/17/23,2e1ccda6-405b-47a8-a7f8-4f3d960be9bb6d3cbc43-887b-4d37-86a7-cc4246dcbdbe,27564272-14f6-4456-9e26-0f24fa7aa627,open,,100,File Folders,70,46,f3efa146-88a1-44bd-9581-8619e5e92bf4,Cummerata Inc
+7/22/23,2e1ccda6-405b-47a8-a7f8-4f3d960be9bb2876d968-98e4-4e20-92a9-4f9d45c3f7d4,27564272-14f6-4456-9e26-0f24fa7aa627,open,,35,A4 Paper,20,51,fc00863b-9823-4da9-bb12-ee178caf48b0,Schinner and Sons
+6/9/23,6d9d0cc2-0f24-4c62-a0fd-0dfd9791bd34fd748d48-699d-4032-848a-e5a710e638df,27564272-14f6-4456-9e26-0f24fa7aa627,assigned,Kristen Mohr,48,Paper Shredder,100,8,78c450c7-f356-4970-96e0-57e6f98240a3,Waelchi LLC
+7/19/23,6d9d0cc2-0f24-4c62-a0fd-0dfd9791bd3415357af5-0273-465c-81d2-65777835407e,27564272-14f6-4456-9e26-0f24fa7aa627,assigned,Kristen Mohr,37,Multifunction Printer,110,48,da833a32-127d-4ca5-a8e3-eac0003cb60f,Muller Inc
+6/17/23,6d9d0cc2-0f24-4c62-a0fd-0dfd9791bd346d3cbc43-887b-4d37-86a7-cc4246dcbdbe,27564272-14f6-4456-9e26-0f24fa7aa627,assigned,Kristen Mohr,95,File Folders,70,16,861eb39b-9f54-46b0-b3fc-3c611c8f747d,"Pfeffer, Torphy and Homenick"
+7/21/23,6d9d0cc2-0f24-4c62-a0fd-0dfd9791bd34fc220883-6a6e-4eec-b8a9-d5ea58d43c53,27564272-14f6-4456-9e26-0f24fa7aa627,assigned,Kristen Mohr,69,Stapler,60,50,6667680a-7c9e-11ee-b962-0242ac120002,ACME Consolidated US
+7/23/23,6d9d0cc2-0f24-4c62-a0fd-0dfd9791bd34e8b47bbe-990b-48a6-a7c6-d15732f85e06,27564272-14f6-4456-9e26-0f24fa7aa627,assigned,Kristen Mohr,86,Printer,80,52,6a0f29f5-5c51-479f-a1de-677c4a6f6bbd,ACME Consolidated Europe
+6/1/23,6d9d0cc2-0f24-4c62-a0fd-0dfd9791bd34fb778d8b-9a3b-4cf2-8e6b-0b33746886f7,27564272-14f6-4456-9e26-0f24fa7aa627,assigned,Kristen Mohr,91,30 Monitor,90,0,23b721e2-ac9a-47d6-83d9-940b388cba01,ACME LATAM
+7/3/23,6d9d0cc2-0f24-4c62-a0fd-0dfd9791bd34c206b101-f8b3-4bbe-a1f4-c674dc3124c8,27564272-14f6-4456-9e26-0f24fa7aa627,assigned,Kristen Mohr,75,Paper Clips,30,32,58ef031d-f89b-4938-93e6-3406a243eca5,ACME Australia
+6/23/23,484d04ae-b975-4224-a691-06ad8d89605be8b47bbe-990b-48a6-a7c6-d15732f85e06,27564272-14f6-4456-9e26-0f24fa7aa627,closed,Latoya Gulgowski,48,Printer,80,22,51e98bd7-ed38-47b1-b8ec-59581d3e4bcb,ACME North America
+7/3/23,484d04ae-b975-4224-a691-06ad8d89605b15357af5-0273-465c-81d2-65777835407e,27564272-14f6-4456-9e26-0f24fa7aa627,closed,Latoya Gulgowski,20,Multifunction Printer,110,32,85084e68-c47c-4b31-80a4-425397a2927c,ACME Japan

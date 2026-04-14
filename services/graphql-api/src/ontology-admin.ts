@@ -145,29 +145,53 @@ export async function registerOntologyAdminRoutes(app: FastifyInstance, driver: 
 
     /** Resolve a dataset file given an id and optional projectId */
     async function resolveDatasetFile(id: string, projectId?: string): Promise<string | null> {
+        // Normalize: strip 'transform-dataset-' prefix if present
+        const normalized = id.replace(/^transform-dataset-/, "");
+        const candidates = [normalized, id]; // try without prefix first, then original
+
+        const tryFind = (folder: string, name: string): string | null => {
+            // Exact match
+            const exact = path.join(folder, `${name}.csv`);
+            if (fs.existsSync(exact)) return exact;
+            // Fuzzy: find any CSV whose filename contains 'name' as substring
+            try {
+                const files = fs.readdirSync(folder).filter(f => f.toLowerCase().endsWith(".csv"));
+                const match = files.find(f =>
+                    f.replace(/\.csv$/i, "") === name ||
+                    f.replace(/\.csv$/i, "").includes(name) ||
+                    name.includes(f.replace(/\.csv$/i, ""))
+                );
+                if (match) return path.join(folder, match);
+            } catch { /* ignore */ }
+            return null;
+        };
+
         // 1. Scoped to a project workspace
         if (projectId) {
             const folderPath = await getProjectFolderPath(projectId);
             if (folderPath) {
-                const candidate = path.join(folderPath, `${id}.csv`);
-                if (fs.existsSync(candidate)) return candidate;
-                // try matching by prefix
-                const files = listCsvFiles(folderPath);
-                const match = files.find(f => f.id === id || f.name === id);
-                if (match) return match.absPath;
+                for (const name of candidates) {
+                    const found = tryFind(folderPath, name);
+                    if (found) return found;
+                }
             }
         }
 
         // 2. Search all workspace folders
         if (fs.existsSync(WORKSPACES_ROOT)) {
             for (const ws of fs.readdirSync(WORKSPACES_ROOT)) {
-                const candidate = path.join(WORKSPACES_ROOT, ws, `${id}.csv`);
-                if (fs.existsSync(candidate)) return candidate;
+                const wsPath = path.join(WORKSPACES_ROOT, ws);
+                if (!fs.statSync(wsPath).isDirectory()) continue;
+                for (const name of candidates) {
+                    const found = tryFind(wsPath, name);
+                    if (found) return found;
+                }
             }
         }
 
         return null;
     }
+
 
     // ── GET /api/ontology-admin/datasets ─────────────────────────────────────
     // List all CSV files across all workspace folders (for the ontology wizard)
@@ -276,11 +300,12 @@ export async function registerOntologyAdminRoutes(app: FastifyInstance, driver: 
                 MATCH (o:OntologyObjectType)
                 OPTIONAL MATCH (o)-[:HAS_PROPERTY]->(p:OntologyProperty)
                 OPTIONAL MATCH (o)-[:IMPLEMENTS]->(i:OntologyInterface)
+                WITH o, collect(DISTINCT p { .* }) as properties, collect(DISTINCT i.api_name) as implements
                 RETURN 
                     o { .* } as object_type,
-                    collect(DISTINCT p { .* }) as properties,
-                    collect(DISTINCT i.api_name) as implements
-                ORDER BY o.display_name
+                    properties,
+                    implements
+                ORDER BY object_type.display_name
             `);
             return result.records.map(r => ({
                 ...r.get("object_type"),
@@ -470,7 +495,11 @@ export async function registerOntologyAdminRoutes(app: FastifyInstance, driver: 
     // POST /api/ontology-admin/object-types
     // Create a new Object Type with typed properties
     app.post("/api/ontology-admin/object-types", async (req: any, reply) => {
-        const { api_name, display_name, plural_display_name, description, primary_key, title_property, backing_source, icon, properties = [], implements_interfaces = [] } = req.body ?? {};
+        const { api_name, display_name, plural_display_name, description, primary_key, title_property, icon, properties = [], implements_interfaces = [] } = req.body ?? {};
+        // Normalize backing_source: strip 'transform-dataset-' prefix if present
+        const raw_backing_source: string = req.body?.backing_source ?? "connector-postgres";
+        const backing_source = raw_backing_source.replace(/^transform-dataset-/, "");
+
         if (!api_name || !display_name || !primary_key) return reply.status(400).send({ error: "api_name, display_name, and primary_key are required" });
 
         const session = driver.session();
@@ -485,7 +514,7 @@ export async function registerOntologyAdminRoutes(app: FastifyInstance, driver: 
                     primary_key: $primary_key, title_property: $title_property,
                     backing_source: $backing_source, icon: $icon
                 })
-            `, { api_name, display_name, plural_display_name: plural_display_name ?? `${display_name}s`, description: description ?? "", primary_key, title_property: title_property ?? primary_key, backing_source: backing_source ?? "connector-postgres", icon: icon ?? "entity" });
+            `, { api_name, display_name, plural_display_name: plural_display_name ?? `${display_name}s`, description: description ?? "", primary_key, title_property: title_property ?? primary_key, backing_source, icon: icon ?? "entity" });
 
             for (const prop of properties) {
                 await session.run(`
@@ -508,7 +537,7 @@ export async function registerOntologyAdminRoutes(app: FastifyInstance, driver: 
             // Set initial index status on the new node
             await session.run(`MATCH (o:OntologyObjectType {api_name: $api_name}) SET o.index_status = 'indexing', o.index_count = 0, o.last_synced = null`, { api_name });
             // Fire-and-forget — schedule after current tick so response is sent first
-            setImmediate(() => triggerIndexing(api_name, backing_source ?? "connector-postgres", driver).catch(console.error));
+            setImmediate(() => triggerIndexing(api_name, backing_source, driver).catch(console.error));
             return { status: "created", api_name };
         } finally { await session.close(); }
     });
@@ -1094,8 +1123,9 @@ export async function registerOntologyAdminRoutes(app: FastifyInstance, driver: 
                 MATCH (o:OntologyObjectType)
                 OPTIONAL MATCH (o)-[:HAS_PROPERTY]->(p:OntologyProperty)
                 OPTIONAL MATCH (o)-[:IMPLEMENTS]->(i:OntologyInterface)
-                RETURN o { .* } as object_type, collect(DISTINCT p { .* }) as properties,
-                       collect(DISTINCT i.api_name) as implements ORDER BY object_type.display_name
+                WITH o, collect(DISTINCT p { .* }) as properties, collect(DISTINCT i.api_name) as implements
+                RETURN o { .* } as object_type, properties, implements
+                ORDER BY object_type.display_name
             `);
 
             const linkTypes = await session.run(`
@@ -1109,7 +1139,9 @@ export async function registerOntologyAdminRoutes(app: FastifyInstance, driver: 
             const actionTypes = await session.run(`
                 MATCH (a:OntologyActionType)
                 OPTIONAL MATCH (a)-[:HAS_PARAMETER]->(p:OntologyActionParameter)
-                RETURN a { .* } as action_type, collect(p { .* }) as parameters ORDER BY a.display_name
+                WITH a, collect(p { .* }) as parameters
+                RETURN a { .* } as action_type, parameters
+                ORDER BY action_type.display_name
             `);
 
             const interfaces = await session.run(`
@@ -1467,18 +1499,44 @@ async function triggerIndexing(apiName: string, backingSource: string, driver: D
     const DATA_ROOT = path.resolve(process.cwd(), "..", "..", "data");
     const WORKSPACES_ROOT = path.join(DATA_ROOT, "workspaces");
 
-    // ── 1. Find the backing CSV ────────────────────────────────────────────────
+    // Normalize: strip 'transform-dataset-' prefix
+    const normalized = backingSource.replace(/^transform-dataset-/, "");
+    const candidates = [normalized, backingSource];
+
+    // ── 1. Find the backing CSV (fuzzy search) ─────────────────────────────────
+    const tryFindCsv = (folder: string, name: string): string | null => {
+        const exact = path.join(folder, `${name}.csv`);
+        if (fs.existsSync(exact)) return exact;
+        // Substring match
+        try {
+            const files = fs.readdirSync(folder).filter(f => f.toLowerCase().endsWith(".csv"));
+            const match = files.find(f => {
+                const stem = f.replace(/\.csv$/i, "");
+                return stem === name || stem.includes(name) || name.includes(stem);
+            });
+            if (match) return path.join(folder, match);
+        } catch { /* ignore */ }
+        return null;
+    };
+
     let csvPath: string | null = null;
 
     if (fs.existsSync(WORKSPACES_ROOT)) {
-        for (const ws of fs.readdirSync(WORKSPACES_ROOT)) {
-            const candidate = path.join(WORKSPACES_ROOT, ws, `${backingSource}.csv`);
-            if (fs.existsSync(candidate)) { csvPath = candidate; break; }
+        outer: for (const ws of fs.readdirSync(WORKSPACES_ROOT)) {
+            const wsPath = path.join(WORKSPACES_ROOT, ws);
+            if (!fs.existsSync(wsPath) || !fs.statSync(wsPath).isDirectory()) continue;
+            for (const name of candidates) {
+                const found = tryFindCsv(wsPath, name);
+                if (found) { csvPath = found; break outer; }
+            }
         }
     }
+    // Fallback to flat data directory
     if (!csvPath) {
-        const flat = path.join(DATA_ROOT, `${backingSource}.csv`);
-        if (fs.existsSync(flat)) csvPath = flat;
+        for (const name of candidates) {
+            const flat = path.join(DATA_ROOT, `${name}.csv`);
+            if (fs.existsSync(flat)) { csvPath = flat; break; }
+        }
     }
 
     if (!csvPath) {
@@ -1509,124 +1567,151 @@ async function triggerIndexing(apiName: string, backingSource: string, driver: D
     const { createReadStream } = await import("fs");
     const { createInterface } = await import("readline");
 
-    const rl = createInterface({
-        input: createReadStream(csvPath, { encoding: "utf-8" }),
-        crlfDelay: Infinity,
-    });
-
-    const parseLine = (line: string): string[] => {
-        const result: string[] = [];
-        let cur = ""; let inQ = false;
-        for (const ch of line) {
-            if (ch === '"') { inQ = !inQ; continue; }
-            if (ch === "," && !inQ) { result.push(cur); cur = ""; continue; }
-            cur += ch;
-        }
-        result.push(cur);
-        return result.map(v => v.trim());
-    };
-
-    let headers: string[] = [];
-    const BATCH_SIZE = 50;   // rows per Neo4j write
-    const PARALLEL = 5;    // concurrent batches
-    let pending: Record<string, string>[] = [];
-    let totalIndexed = 0;
-    let isFirstLine = true;
-
-    const mainSess = driver.session();
-
-    /** Write one batch of rows to Neo4j as OntologyObject nodes */
-    const writeBatch = async (rows: Record<string, string>[]) => {
-        const sess = driver.session();
-        try {
-            // Delete old objects for this type in this batch range then MERGE fresh nodes
-            await sess.run(
-                `UNWIND $rows AS row
-                 MERGE (obj:OntologyObject {_type: $type, _pk: row._pk})
-                 SET obj   = row,
-                     obj._type = $type,
-                     obj._pk   = row._pk,
-                     obj._indexed_at = $ts`,
-                {
-                    type: apiName,
-                    rows: rows.map(r => ({ ...r, _pk: String(r[primaryKey] ?? Object.values(r)[0] ?? "") })),
-                    ts: new Date().toISOString(),
-                }
-            );
-        } catch (e) {
-            console.error(`[indexing] ${apiName}: batch write error`, e);
-        } finally {
-            await sess.close();
-        }
-    };
-
-    const batchQueue: Record<string, string>[][] = [];
-    let running = 0;
-
-    const flush = async (force = false) => {
-        while (pending.length >= BATCH_SIZE || (force && pending.length > 0)) {
-            const batch = pending.splice(0, BATCH_SIZE);
-            batchQueue.push(batch);
-        }
-
-        // Drain queue with parallelism limit
-        while (batchQueue.length > 0 && running < PARALLEL) {
-            const b = batchQueue.shift()!;
-            running++;
-            writeBatch(b).then(async () => {
-                totalIndexed += b.length;
-                running--;
-                // Update progress in Neo4j
-                try {
-                    await mainSess.run(
-                        `MATCH (o:OntologyObjectType {api_name: $n}) SET o.index_count = $c`,
-                        { n: apiName, c: int(totalIndexed) }
-                    );
-                } catch (err: any) {
-                    console.error(`[indexing] ${apiName}: count update error`, err.message);
-                }
-            });
-        }
-    };
-
-    // Read line by line
-    for await (const line of rl) {
-        if (!line.trim()) continue;
-        if (isFirstLine) {
-            headers = parseLine(line);
-            isFirstLine = false;
-            continue;
-        }
-        const vals = parseLine(line);
-        const row: Record<string, string> = {};
-        headers.forEach((h, i) => { row[h] = vals[i] ?? ""; });
-        pending.push(row);
-        if (pending.length >= BATCH_SIZE) await flush();
-    }
-
-    // Flush remaining rows
-    await flush(true);
-
-    // Wait for all running batches to complete
-    await new Promise<void>((resolve) => {
-        const wait = () => { if (running === 0 && batchQueue.length === 0) resolve(); else setTimeout(wait, 100); };
-        wait();
-    });
-
-    // ── 4. Mark as active ─────────────────────────────────────────────────────
     try {
-        await mainSess.run(
-            `MATCH (o:OntologyObjectType {api_name: $n})
-             SET o.index_status = 'active',
-                 o.index_count  = $c,
-                 o.last_synced  = $ts`,
-            { n: apiName, c: int(totalIndexed), ts: new Date().toISOString() }
-        );
+        const rl = createInterface({
+            input: createReadStream(csvPath, { encoding: "utf-8" }),
+            crlfDelay: Infinity,
+        });
+
+        const parseLine = (line: string): string[] => {
+            const result: string[] = [];
+            let cur = ""; let inQ = false;
+            for (const ch of line) {
+                if (ch === '"') { inQ = !inQ; continue; }
+                if (ch === "," && !inQ) { result.push(cur); cur = ""; continue; }
+                cur += ch;
+            }
+            result.push(cur);
+            return result.map(v => v.trim());
+        };
+
+        const normalizedPk = String(primaryKey || "").trim().toLowerCase();
+        const normalizedPkNoSep = normalizedPk.replace(/[^a-z0-9]/g, "");
+        const resolvePrimaryKeyValue = (row: Record<string, string>): string => {
+            const direct = row[primaryKey];
+            if (direct !== undefined && String(direct).trim() !== "") return String(direct);
+            const entries = Object.entries(row);
+            const loose = entries.find(([k]) => k.toLowerCase() === normalizedPk)?.[1];
+            if (loose !== undefined && String(loose).trim() !== "") return String(loose);
+            const canonical = entries.find(([k]) => k.toLowerCase().replace(/[^a-z0-9]/g, "") === normalizedPkNoSep)?.[1];
+            if (canonical !== undefined && String(canonical).trim() !== "") return String(canonical);
+            return String(Object.values(row)[0] ?? "");
+        };
+
+        let headers: string[] = [];
+        const BATCH_SIZE = 50;
+        const PARALLEL = 5;
+        let pending: Record<string, string>[] = [];
+        let totalIndexed = 0;
+        let isFirstLine = true;
+
+        const writeBatch = async (rows: Record<string, string>[]) => {
+            const sess = driver.session();
+            try {
+                await sess.run(
+                    `UNWIND $rows AS row
+                     MERGE (obj:OntologyObject {_type: $type, _pk: row._pk})
+                     SET obj   = row,
+                         obj._type = $type,
+                         obj._pk   = row._pk,
+                         obj._indexed_at = $ts`,
+                    {
+                        type: apiName,
+                        rows: rows.map(r => ({ ...r, _pk: resolvePrimaryKeyValue(r) })),
+                        ts: new Date().toISOString(),
+                    }
+                );
+            } finally {
+                await sess.close();
+            }
+        };
+
+        const batchQueue: Record<string, string>[][] = [];
+        let running = 0;
+
+        const flush = async (force = false) => {
+            while (pending.length >= BATCH_SIZE || (force && pending.length > 0)) {
+                const batch = pending.splice(0, BATCH_SIZE);
+                batchQueue.push(batch);
+            }
+
+            while (batchQueue.length > 0 && running < PARALLEL) {
+                const b = batchQueue.shift()!;
+                running++;
+                writeBatch(b).then(async () => {
+                    totalIndexed += b.length;
+                    running--;
+                    try {
+                        const countSess = driver.session();
+                        try {
+                            await countSess.run(
+                                `MATCH (o:OntologyObjectType {api_name: $n}) SET o.index_count = $c`,
+                                { n: apiName, c: int(totalIndexed) }
+                            );
+                        } finally {
+                            await countSess.close();
+                        }
+                    } catch (err: any) {
+                        console.error(`[indexing] ${apiName}: count update error`, err.message);
+                    }
+                }).catch((err) => {
+                    running--;
+                    console.error(`[indexing] ${apiName}: batch write error`, err);
+                });
+            }
+        };
+
+        for await (const line of rl) {
+            if (!line.trim()) continue;
+            if (isFirstLine) {
+                headers = parseLine(line);
+                isFirstLine = false;
+                continue;
+            }
+            const vals = parseLine(line);
+            const row: Record<string, string> = {};
+            headers.forEach((h, i) => { row[h] = vals[i] ?? ""; });
+            pending.push(row);
+            if (pending.length >= BATCH_SIZE) await flush();
+        }
+
+        await flush(true);
+
+        await new Promise<void>((resolve) => {
+            const wait = () => { if (running === 0 && batchQueue.length === 0) resolve(); else setTimeout(wait, 100); };
+            wait();
+        });
+
+        const finalSess = driver.session();
+        try {
+            await finalSess.run(
+                `MATCH (o:OntologyObjectType {api_name: $n})
+                 SET o.index_status = 'active',
+                     o.index_count  = $c,
+                     o.last_synced  = $ts`,
+                { n: apiName, c: int(totalIndexed), ts: new Date().toISOString() }
+            );
+        } finally {
+            await finalSess.close();
+        }
         console.log(`[indexing] ${apiName}: complete — ${totalIndexed} objects written to Neo4j`);
     } catch (e) {
-        console.error(`[indexing] ${apiName}: final status update failed`, e);
-    } finally {
-        await mainSess.close();
+        console.error(`[indexing] ${apiName}: failed`, e);
+        try {
+            const errorSess = driver.session();
+            try {
+                await errorSess.run(
+                    `MATCH (o:OntologyObjectType {api_name: $n})
+                     SET o.index_status = 'error',
+                         o.last_synced = $ts`,
+                    { n: apiName, ts: new Date().toISOString() }
+                );
+            } finally {
+                await errorSess.close();
+            }
+        } catch {
+            // ignore secondary failure
+        }
     }
 }
 

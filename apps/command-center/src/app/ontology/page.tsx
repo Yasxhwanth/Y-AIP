@@ -29,6 +29,13 @@ interface DraftObjectType extends OntologyObjectType {
     generated_actions: DraftGeneratedAction[];
     edit_count: number;
 }
+function normalizeApiName(value: string): string {
+    return value
+        .toLowerCase()
+        .trim()
+        .replace(/[^a-z0-9]+/g, "_")
+        .replace(/^_+|_+$/g, "");
+}
 type ObjectSubTab = "Overview" | "Properties" | "Datasources" | "Security" | "Capabilities" | "Interfaces" | "Materializations" | "Automations" | "Usage" | "History" | "Object views";
 
 const API_BASE = "/api/ontology-admin";
@@ -92,7 +99,8 @@ import {
     HelpCircle,
     Settings,
     Grid,
-    X, Box, Square, CheckSquare, Edit, Trash2, Calendar, Hash, Type
+    X, Box, Square, CheckSquare, Edit, Trash2, Calendar, Hash, Type,
+    Shield, Activity, GitMerge
 } from "lucide-react";
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -101,7 +109,7 @@ import {
 export default function OntologyManagerPage() {
     const [view, setView] = useState<"discover" | "proposals" | "history" | Tab>("discover");
     const [activeBranch, setActiveBranch] = useState("Main");
-    const [branches, setBranches] = useState(["Main", "yashwanth/speedrun"]);
+    const [branches, setBranches] = useState<string[]>(["Main"]);
     const [schema, setSchema] = useState<OntologySchema | null>(null);
     const [loading, setLoading] = useState(true);
     const [selectedObject, setSelectedObject] = useState<OntologyObjectType | null>(null);
@@ -115,6 +123,10 @@ export default function OntologyManagerPage() {
     // Dropdowns
     const [showBranchSelector, setShowBranchSelector] = useState(false);
     const [showNewDropdown, setShowNewDropdown] = useState(false);
+    const [showCreateBranchModal, setShowCreateBranchModal] = useState(false);
+    const [newBranchName, setNewBranchName] = useState("");
+    const [enableIndexingOnBranch, setEnableIndexingOnBranch] = useState(true);
+    const [canEditMain, setCanEditMain] = useState(true);
 
     // Forms
     const [showWizard, setShowWizard] = useState(false);
@@ -149,14 +161,44 @@ export default function OntologyManagerPage() {
     const resources = [
         { id: "Objects", label: "Object types", icon: Database, count: resourceCounts.Objects },
         { id: "Properties", label: "Properties", icon: Settings, count: 0 },
-        { id: "SharedProps", label: "Shared properties", icon: Share2, count: 138 },
+        { id: "SharedProps", label: "Shared properties", icon: Share2, count: 0 },
         { id: "Links", label: "Link types", icon: Link2, count: resourceCounts.Links },
         { id: "Actions", label: "Action types", icon: Zap, count: resourceCounts.Actions, separator: true },
-        { id: "Groups", label: "Groups", icon: LayoutGrid, count: 3 },
+        { id: "Groups", label: "Groups", icon: LayoutGrid, count: 0 },
         { id: "Interfaces", label: "Interfaces", icon: Share2, count: resourceCounts.Interfaces },
-        { id: "ValueTypes", label: "Value types", icon: Settings, count: 20 },
-        { id: "Functions", label: "Functions", icon: Settings, count: 267 },
+        { id: "ValueTypes", label: "Value types", icon: Settings, count: 0 },
+        { id: "Functions", label: "Functions", icon: Settings, count: 0 },
     ];
+
+    const canCreateOnCurrentBranch = activeBranch !== "Main" || canEditMain;
+
+    useEffect(() => {
+        if (typeof window === "undefined") return;
+        try {
+            const stored = window.localStorage.getItem("ontology-branches");
+            if (stored) {
+                const parsed = JSON.parse(stored);
+                if (Array.isArray(parsed) && parsed.length > 0) {
+                    const normalized = parsed.filter((b): b is string => typeof b === "string" && b.trim().length > 0);
+                    if (normalized.length > 0) setBranches(Array.from(new Set(["Main", ...normalized])));
+                }
+            }
+            const flag = window.localStorage.getItem("ontology-can-edit-main");
+            if (flag === "false") setCanEditMain(false);
+        } catch {
+            // ignore persistence errors
+        }
+    }, []);
+
+    useEffect(() => {
+        if (typeof window === "undefined") return;
+        try {
+            window.localStorage.setItem("ontology-branches", JSON.stringify(branches));
+            window.localStorage.setItem("ontology-can-edit-main", String(canEditMain));
+        } catch {
+            // ignore persistence errors
+        }
+    }, [branches, canEditMain]);
 
     const draftEditCount = draftObject?.edit_count ?? 0;
     const reviewChanges = draftObject ? [
@@ -226,9 +268,15 @@ export default function OntologyManagerPage() {
                 )
             );
 
+            const encodedApiName = encodeURIComponent(draftObject.api_name);
+            // Auto-trigger indexing immediately after creation
+            try {
+                await fetch(`${API_BASE}/object-types/${encodedApiName}/index`, { method: "POST" });
+            } catch { /* indexing is best-effort */ }
+
             let persisted: OntologyObjectType | null = null;
             try {
-                const detailRes = await fetch(`${API_BASE}/object-types/${draftObject.api_name}`);
+                const detailRes = await fetch(`${API_BASE}/object-types/${encodedApiName}`);
                 if (detailRes.ok) persisted = await detailRes.json();
             } catch { /* ignore */ }
 
@@ -393,7 +441,7 @@ export default function OntologyManagerPage() {
                                     ))}
                                     <div style={{ height: 1, background: "#e5e7eb", marginTop: 4, marginBottom: 4 }} />
                                     <div
-                                        onClick={() => { const name = prompt("Enter new branch name:"); if (name) { setBranches([...branches, name]); setActiveBranch(name); setShowBranchSelector(false); } }}
+                                        onClick={() => { setShowCreateBranchModal(true); setShowBranchSelector(false); }}
                                         onMouseEnter={e => e.currentTarget.style.background = "#eff6ff"}
                                         onMouseLeave={e => e.currentTarget.style.background = "transparent"}
                                         style={{ padding: "8px 12px", cursor: "pointer", color: "#2563eb", fontSize: 13, fontWeight: 600, borderRadius: 4, display: "flex", alignItems: "center", gap: 6 }}>
@@ -407,12 +455,31 @@ export default function OntologyManagerPage() {
                     {/* New Button */}
                     <div style={{ position: "relative" }}>
                         <button
-                            onClick={() => setShowNewDropdown(!showNewDropdown)}
-                            style={{ background: "#3b82f6", border: "none", borderRadius: 4, padding: "6px 16px", display: "flex", alignItems: "center", gap: 8, cursor: "pointer", color: "white", fontSize: 12, fontWeight: 600 }}
+                            onClick={() => {
+                                if (canCreateOnCurrentBranch) {
+                                    setShowNewDropdown(!showNewDropdown);
+                                    return;
+                                }
+                                setShowBranchSelector(true);
+                            }}
+                            title={canCreateOnCurrentBranch ? "Create ontology resources" : "Create a branch first to enable New"}
+                            style={{
+                                background: canCreateOnCurrentBranch ? "#3b82f6" : "#9ca3af",
+                                border: "none",
+                                borderRadius: 4,
+                                padding: "6px 16px",
+                                display: "flex",
+                                alignItems: "center",
+                                gap: 8,
+                                cursor: "pointer",
+                                color: "white",
+                                fontSize: 12,
+                                fontWeight: 600
+                            }}
                         >
                             New <ChevronDown size={14} />
                         </button>
-                        {showNewDropdown && (
+                        {showNewDropdown && canCreateOnCurrentBranch && (
                             <div style={{ position: "absolute", top: "100%", right: 0, marginTop: 4, width: 260, background: "#fff", border: "1px solid #e5e7eb", borderRadius: 8, zIndex: 600, boxShadow: "0 10px 30px rgba(0,0,0,0.2)" }}>
                                 <div style={{ padding: 6 }}>
                                     {[
@@ -444,6 +511,56 @@ export default function OntologyManagerPage() {
                     </div>
                 </div>
             </div>
+            {showCreateBranchModal && (
+                <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.55)", zIndex: 1200, display: "flex", alignItems: "center", justifyContent: "center", padding: 24 }}>
+                    <div style={{ width: 460, background: "#ffffff", borderRadius: 10, border: "1px solid #e5e7eb", boxShadow: "0 24px 48px rgba(0,0,0,0.18)" }}>
+                        <div style={{ padding: "14px 18px", borderBottom: "1px solid #e5e7eb", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                            <h3 style={{ margin: 0, fontSize: 16, color: "#111827" }}>Create branch</h3>
+                            <button onClick={() => setShowCreateBranchModal(false)} style={{ background: "none", border: "none", color: "#9ca3af", cursor: "pointer" }}><X size={16} /></button>
+                        </div>
+                        <div style={{ padding: 18 }}>
+                            <label style={{ display: "block", fontSize: 12, fontWeight: 600, color: "#374151", marginBottom: 6 }}>Branch name</label>
+                            <input
+                                value={newBranchName}
+                                onChange={(e) => setNewBranchName(e.target.value)}
+                                placeholder="[username]/e2espeedrun"
+                                style={{ width: "100%", border: "1px solid #d1d5db", borderRadius: 6, padding: "9px 10px", fontSize: 13, outline: "none" }}
+                            />
+                            <div style={{ marginTop: 12, border: "1px solid #e5e7eb", borderRadius: 8, padding: 10, background: "#f9fafb", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                                <div>
+                                    <div style={{ fontSize: 13, fontWeight: 600, color: "#111827" }}>Enable indexing</div>
+                                    <div style={{ fontSize: 11, color: "#6b7280", marginTop: 2 }}>Recommended for training workflows</div>
+                                </div>
+                                <button
+                                    type="button"
+                                    onClick={() => setEnableIndexingOnBranch(v => !v)}
+                                    style={{ width: 40, height: 22, borderRadius: 11, border: "1px solid #d1d5db", background: enableIndexingOnBranch ? "#16a34a" : "#e5e7eb", position: "relative", cursor: "pointer" }}
+                                >
+                                    <span style={{ position: "absolute", top: 2, left: enableIndexingOnBranch ? 20 : 2, width: 16, height: 16, borderRadius: "50%", background: "#fff", boxShadow: "0 1px 2px rgba(0,0,0,0.2)" }} />
+                                </button>
+                            </div>
+                        </div>
+                        <div style={{ padding: "12px 18px", borderTop: "1px solid #e5e7eb", display: "flex", justifyContent: "flex-end", gap: 10, background: "#f9fafb" }}>
+                            <button onClick={() => setShowCreateBranchModal(false)} style={{ border: "1px solid #d1d5db", background: "#fff", borderRadius: 6, padding: "6px 14px", fontSize: 13, cursor: "pointer", color: "#374151" }}>Cancel</button>
+                            <button
+                                onClick={() => {
+                                    const next = newBranchName.trim();
+                                    if (!next) return;
+                                    if (!branches.includes(next)) setBranches(prev => [...prev, next]);
+                                    setActiveBranch(next);
+                                    setCanEditMain(true);
+                                    setShowCreateBranchModal(false);
+                                    setNewBranchName("");
+                                }}
+                                disabled={!newBranchName.trim()}
+                                style={{ border: "none", background: "#16a34a", color: "#fff", borderRadius: 6, padding: "6px 14px", fontSize: 13, cursor: newBranchName.trim() ? "pointer" : "not-allowed", opacity: newBranchName.trim() ? 1 : 0.6, fontWeight: 600 }}
+                            >
+                                Create branch
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
 
             <div style={{ display: "flex", flex: 1, overflow: "hidden" }}>
 
@@ -841,7 +958,15 @@ function NewObjectTypeWizard({ onSuccess, onCancel }: { onSuccess: (draft: Draft
         if (!ds) return;
 
         setLoadingColumns(true);
-        setFormData(prev => ({ ...prev, datasetId: id, displayName: ds.name.replace(/_/g, ' ').replace(/\b\w/g, (l: string) => l.toUpperCase()), apiName: ds.name, pluralName: ds.name.endsWith('s') ? ds.name : ds.name + 's' }));
+        // Normalize: strip transform-dataset- prefix and trailing timestamp (-digits)
+        const cleanName = ds.name
+            .replace(/^transform-dataset-/, "")
+            .replace(/-\d{10,}$/, "");
+        const displayName = cleanName.replace(/_/g, ' ').replace(/\b\w/g, (l: string) => l.toUpperCase());
+        const apiName = normalizeApiName(cleanName);
+        const pluralName = cleanName.endsWith('s') ? cleanName : cleanName + 's';
+        setFormData(prev => ({ ...prev, datasetId: id, displayName, apiName, pluralName }));
+
 
         try {
             const res = await fetch(`${API_BASE}/datasets/${id}/preview`);
@@ -851,7 +976,7 @@ function NewObjectTypeWizard({ onSuccess, onCancel }: { onSuccess: (draft: Draft
                 setFormData(prev => ({
                     ...prev,
                     properties: columns.map((col: DatasetColumn) => ({
-                        api_name: col.name.toLowerCase().replace(/ /g, '_'),
+                        api_name: normalizeApiName(col.name),
                         display_name: col.name,
                         data_type: col.type || "string", // Use backend inferred type
                         is_primary_key: false,
@@ -869,19 +994,21 @@ function NewObjectTypeWizard({ onSuccess, onCancel }: { onSuccess: (draft: Draft
     const handleSubmit = async () => {
         setSaving(true);
         try {
+            const apiName = normalizeApiName(formData.apiName || formData.displayName || formData.datasetId || "object_type");
             const generatedActions: DraftGeneratedAction[] = [];
-            if (formData.actions.create) generatedActions.push({ api_name: `create_${formData.apiName}`, display_name: `Create ${formData.displayName}`, action_type: "create" });
-            if (formData.actions.edit) generatedActions.push({ api_name: `edit_${formData.apiName}`, display_name: `Modify ${formData.displayName}`, action_type: "edit" });
-            if (formData.actions.delete) generatedActions.push({ api_name: `delete_${formData.apiName}`, display_name: `Delete ${formData.displayName}`, action_type: "delete" });
+            if (formData.actions.create) generatedActions.push({ api_name: `create_${apiName}`, display_name: `Create ${formData.displayName}`, action_type: "create" });
+            if (formData.actions.edit) generatedActions.push({ api_name: `edit_${apiName}`, display_name: `Modify ${formData.displayName}`, action_type: "edit" });
+            if (formData.actions.delete) generatedActions.push({ api_name: `delete_${apiName}`, display_name: `Delete ${formData.displayName}`, action_type: "delete" });
 
             const normalizedProperties = formData.properties.map((p: OntologyProperty) => ({
                 ...p,
-                is_primary_key: p.api_name === formData.primaryKey || p.display_name === formData.primaryKey,
-                is_required: p.is_required || p.api_name === formData.primaryKey || p.display_name === formData.primaryKey
+                api_name: normalizeApiName(p.api_name || p.display_name || "field"),
+                is_primary_key: p.api_name === formData.primaryKey,
+                is_required: p.is_required || p.api_name === formData.primaryKey
             }));
 
             onSuccess({
-                api_name: formData.apiName,
+                api_name: apiName,
                 display_name: formData.displayName,
                 plural_display_name: formData.pluralName,
                 description: formData.description || `Object type backed by ${formData.datasetId}`,
@@ -1048,7 +1175,15 @@ function NewObjectTypeWizard({ onSuccess, onCancel }: { onSuccess: (draft: Draft
                                     <div style={{ fontSize: 13, color: "#6b7280" }}>Select a preexisting Y-AIP dataset</div>
                                 </div>
                                 <div
-                                    style={{ flex: 1, padding: 20, border: "2px solid #e5e7eb", borderRadius: 8, opacity: 0.5, cursor: "not-allowed" }}
+                                    onClick={() => setFormData({ ...formData, datasourceType: "none", datasetId: "" })}
+                                    style={{
+                                        flex: 1,
+                                        padding: 20,
+                                        border: `2px solid ${formData.datasourceType === "none" ? "#3b82f6" : "#e5e7eb"}`,
+                                        borderRadius: 8,
+                                        cursor: "pointer",
+                                        background: formData.datasourceType === "none" ? "#eff6ff" : "transparent"
+                                    }}
                                 >
                                     <div style={{ fontWeight: 600, fontSize: 14, marginBottom: 4, color: "#111827" }}>Continue without datasource</div>
                                     <div style={{ fontSize: 13, color: "#6b7280" }}>Generate a dataset for permissions purposes</div>
@@ -1193,7 +1328,7 @@ function NewObjectTypeWizard({ onSuccess, onCancel }: { onSuccess: (draft: Draft
                                     <select style={{ width: "100%", padding: "10px 12px", border: "1px solid #d1d5db", borderRadius: 6, fontSize: 13, outline: "none", appearance: "none", color: formData.primaryKey ? "#111827" : "#6b7280" }} value={formData.primaryKey} onChange={e => setFormData({ ...formData, primaryKey: e.target.value })}>
                                         <option value="">Select a property</option>
                                         {formData.properties.map(p => (
-                                            <option key={p.api_name} value={p.display_name}>{p.display_name}</option>
+                                            <option key={p.api_name} value={p.api_name}>{p.display_name}</option>
                                         ))}
                                     </select>
                                     <ChevronDown size={14} style={{ position: "absolute", right: 12, top: 12, color: "#9ca3af", pointerEvents: "none" }} />
@@ -1207,7 +1342,7 @@ function NewObjectTypeWizard({ onSuccess, onCancel }: { onSuccess: (draft: Draft
                                     <select style={{ width: "100%", padding: "10px 12px", border: "1px solid #d1d5db", borderRadius: 6, fontSize: 13, outline: "none", appearance: "none", color: formData.titleProperty ? "#111827" : "#6b7280" }} value={formData.titleProperty} onChange={e => setFormData({ ...formData, titleProperty: e.target.value })}>
                                         <option value="">Select a property</option>
                                         {formData.properties.map(p => (
-                                            <option key={p.api_name} value={p.display_name}>{p.display_name}</option>
+                                            <option key={p.api_name} value={p.api_name}>{p.display_name}</option>
                                         ))}
                                     </select>
                                     <ChevronDown size={14} style={{ position: "absolute", right: 12, top: 12, color: "#9ca3af", pointerEvents: "none" }} />
@@ -1299,8 +1434,18 @@ function NewObjectTypeWizard({ onSuccess, onCancel }: { onSuccess: (draft: Draft
                     {step < 4 ? (
                         <button
                             onClick={handleNext}
-                            disabled={step === 1 && !formData.datasetId}
-                            style={{ background: "#2563eb", border: "none", color: "white", borderRadius: 6, padding: "8px 24px", cursor: "pointer", fontSize: 13, fontWeight: 600, opacity: (step === 1 && !formData.datasetId) ? 0.5 : 1 }}
+                            disabled={step === 1 && formData.datasourceType === "existing" && !formData.datasetId}
+                            style={{
+                                background: "#2563eb",
+                                border: "none",
+                                color: "white",
+                                borderRadius: 6,
+                                padding: "8px 24px",
+                                cursor: "pointer",
+                                fontSize: 13,
+                                fontWeight: 600,
+                                opacity: (step === 1 && formData.datasourceType === "existing" && !formData.datasetId) ? 0.5 : 1
+                            }}
                         >
                             Next
                         </button>
@@ -1310,7 +1455,7 @@ function NewObjectTypeWizard({ onSuccess, onCancel }: { onSuccess: (draft: Draft
                             disabled={saving || !formData.displayName || !formData.apiName}
                             style={{ background: "#2563eb", border: "none", color: "white", borderRadius: 6, padding: "8px 24px", cursor: saving ? "not-allowed" : "pointer", fontSize: 13, fontWeight: 600, opacity: !formData.displayName || saving ? 0.5 : 1 }}
                         >
-                            {saving ? "Openingâ€¦" : "Open in manager"}
+                            {saving ? "Creating..." : "Open in manager"}
                         </button>
                     )}
                 </div>
@@ -1334,6 +1479,7 @@ function ObjectTypeDetail({
     isDraft?: boolean;
     onDiscardDraft?: () => void;
 }) {
+    const encodedApiName = encodeURIComponent(ot.api_name);
     const [subTab, setSubTab] = useState<ObjectSubTab>("Overview");
     const [indexStatus, setIndexStatus] = useState<{ index_status: string; index_count: number; last_synced: string | null }>({
         index_status: isDraft ? "draft" : (ot.index_status ?? "pending"),
@@ -1343,6 +1489,11 @@ function ObjectTypeDetail({
     const [preview, setPreview] = useState<{ columns: string[]; rows: Record<string, string>[]; total: number; file: string | null } | null>(null);
     const [loadingPreview, setLoadingPreview] = useState(false);
     const [showIndexMenu, setShowIndexMenu] = useState(false);
+    // Datasources tab state
+    const [osv2Collapsed, setOsv2Collapsed] = useState(false);
+    const [storageVersion, setStorageVersion] = useState<"v1" | "v2">("v2");
+    const [savingStorage, setSavingStorage] = useState(false);
+    const [showMonitorModal, setShowMonitorModal] = useState(false);
 
     useEffect(() => {
         setIndexStatus({
@@ -1357,14 +1508,14 @@ function ObjectTypeDetail({
         if (isDraft) return;
         const poll = async () => {
             try {
-                const r = await fetch(`${API_BASE}/object-types/${ot.api_name}/index-status`);
+                const r = await fetch(`${API_BASE}/object-types/${encodedApiName}/index-status`);
                 if (r.ok) setIndexStatus(await r.json());
             } catch { /* offline */ }
         };
         poll();
         const id = setInterval(poll, 2000);
         return () => clearInterval(id);
-    }, [isDraft, ot.api_name]);
+    }, [isDraft, encodedApiName]);
 
     // Load preview when Datasources tab opens
     useEffect(() => {
@@ -1372,7 +1523,7 @@ function ObjectTypeDetail({
         setLoadingPreview(true);
         const previewEndpoint = isDraft
             ? `${API_BASE}/datasets/${encodeURIComponent(ot.backing_source)}/preview`
-            : `${API_BASE}/object-types/${ot.api_name}/preview`;
+            : `${API_BASE}/object-types/${encodedApiName}/preview`;
         fetch(previewEndpoint)
             .then(r => r.ok ? r.json() : null)
             .then(d => {
@@ -1383,12 +1534,25 @@ function ObjectTypeDetail({
             })
             .catch(() => setPreview(null))
             .finally(() => setLoadingPreview(false));
-    }, [isDraft, subTab, ot.api_name, ot.backing_source]);
+    }, [isDraft, subTab, encodedApiName, ot.backing_source]);
 
     const handleReindex = async () => {
         if (isDraft) return;
-        await fetch(`${API_BASE}/object-types/${ot.api_name}/index`, { method: "POST" });
+        await fetch(`${API_BASE}/object-types/${encodedApiName}/index`, { method: "POST" });
         setIndexStatus(s => ({ ...s, index_status: "indexing", index_count: 0 }));
+    };
+
+    const handleStorageChange = async (v: "v1" | "v2") => {
+        setStorageVersion(v);
+        if (isDraft) return;
+        setSavingStorage(true);
+        try {
+            await fetch(`${API_BASE}/object-types/${encodedApiName}`, {
+                method: "PATCH",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ storage_version: v })
+            });
+        } catch { /* best-effort */ } finally { setSavingStorage(false); }
     };
 
     const handleDelete = async () => {
@@ -1489,12 +1653,35 @@ function ObjectTypeDetail({
                                 {!isIndexing && !isActive && !isDraft && <div style={{ width: 12, height: 12, borderRadius: "50%", background: "#9ca3af", flexShrink: 0 }} />}
                                 <div>
                                     <div style={{ fontSize: 14, fontWeight: 600, color: isDraft ? "#4b5563" : isActive ? "#065f46" : isIndexing ? "#b45309" : "#4b5563" }}>
-                                        {isActive ? `Active — ${indexStatus.index_count.toLocaleString()} objects indexed` : isIndexing ? `Indexing… ${indexStatus.index_count.toLocaleString()} objects indexed so far` : "Not indexed"}
+                                        {isDraft
+                                            ? "Draft — save to ontology to start indexing"
+                                            : isActive
+                                                ? `Active — ${indexStatus.index_count.toLocaleString()} objects indexed`
+                                                : isIndexing
+                                                    ? `Indexing… ${indexStatus.index_count.toLocaleString()} objects indexed so far`
+                                                    : "Not indexed"}
                                     </div>
                                     {indexStatus.last_synced && <div style={{ fontSize: 12, color: "#6b7280", marginTop: 2 }}>Last synced {new Date(indexStatus.last_synced).toLocaleString()}</div>}
                                 </div>
                             </div>
-                            <button onClick={handleReindex} style={{ border: "1px solid #d1d5db", color: "#4b5563", borderRadius: 6, padding: "6px 12px", cursor: "pointer", fontSize: 12, fontWeight: 500, background: "#ffffff" }}>↻ Re-index</button>
+                            <button
+                                onClick={handleReindex}
+                                disabled={isDraft || isIndexing}
+                                title={isDraft ? "Save to ontology first" : isIndexing ? "Indexing already running" : "Re-index"}
+                                style={{
+                                    border: "1px solid #d1d5db",
+                                    color: "#4b5563",
+                                    borderRadius: 6,
+                                    padding: "6px 12px",
+                                    cursor: isDraft || isIndexing ? "not-allowed" : "pointer",
+                                    fontSize: 12,
+                                    fontWeight: 500,
+                                    background: "#ffffff",
+                                    opacity: isDraft || isIndexing ? 0.5 : 1,
+                                }}
+                            >
+                                ↻ Re-index
+                            </button>
                         </div>
 
                         {/* Overview Metadata Grid matching reference */}
@@ -1543,33 +1730,56 @@ function ObjectTypeDetail({
                                     <div style={{ color: "#6b7280", fontSize: 13 }}>Index status</div>
                                     <div
                                         onClick={() => setShowIndexMenu(!showIndexMenu)}
-                                        style={{ display: "flex", alignItems: "center", gap: 6, color: "#2563eb", fontSize: 13, fontWeight: 500, background: "#eff6ff", padding: "2px 8px", borderRadius: 4, cursor: "pointer", border: "1px solid #bfdbfe" }}
+                                        style={{
+                                            display: "flex", alignItems: "center", gap: 6, fontSize: 13, fontWeight: 500,
+                                            background: isActive ? "#ecfdf5" : isIndexing ? "#fffbeb" : isDraft ? "#f3f4f6" : "#eff6ff",
+                                            color: isActive ? "#065f46" : isIndexing ? "#b45309" : isDraft ? "#6b7280" : "#2563eb",
+                                            border: `1px solid ${isActive ? "#6ee7b7" : isIndexing ? "#fcd34d" : isDraft ? "#d1d5db" : "#bfdbfe"}`,
+                                            padding: "2px 8px", borderRadius: 4, cursor: isDraft ? "default" : "pointer"
+                                        }}
                                     >
-                                        <div style={{ width: 12, height: 12, border: "2px solid #2563eb", borderTopColor: "transparent", borderRadius: "50%", animation: "spin 1s linear infinite" }} />
-                                        {isActive ? "Active" : isIndexing ? "Running initial sync" : "Pending"}
+                                        {isActive && <span style={{ fontWeight: 700 }}>✓</span>}
+                                        {isIndexing && <div style={{ width: 10, height: 10, border: "2px solid #f59e0b", borderTopColor: "transparent", borderRadius: "50%", animation: "spin 1s linear infinite" }} />}
+                                        {!isActive && !isIndexing && <div style={{ width: 8, height: 8, borderRadius: "50%", background: isDraft ? "#d1d5db" : "#93c5fd" }} />}
+                                        {isDraft ? "Draft" : isActive ? `Active — ${indexStatus.index_count.toLocaleString()} objects` : isIndexing ? `Indexing… ${indexStatus.index_count}` : "Pending"}
                                     </div>
-                                    {showIndexMenu && (
-                                        <div style={{ position: "absolute", top: "100%", right: 0, marginTop: 4, width: 220, background: "#ffffff", border: "1px solid #e5e7eb", borderRadius: 6, boxShadow: "0 10px 15px -3px rgba(0,0,0,0.1)", zIndex: 100 }}>
+                                    {showIndexMenu && !isDraft && (
+                                        <div style={{ position: "absolute", top: "100%", right: 0, marginTop: 4, width: 240, background: "#ffffff", border: "1px solid #e5e7eb", borderRadius: 6, boxShadow: "0 10px 15px -3px rgba(0,0,0,0.1)", zIndex: 100 }}>
                                             <div style={{ padding: "12px 16px", borderBottom: "1px solid #e5e7eb" }}>
                                                 <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8 }}>
                                                     <span style={{ fontSize: 12, color: "#6b7280" }}>Status</span>
-                                                    <span style={{ fontSize: 12, color: "#2563eb", display: "flex", alignItems: "center", gap: 4 }}>
-                                                        <div style={{ width: 10, height: 10, border: "2px solid #2563eb", borderTopColor: "transparent", borderRadius: "50%", animation: "spin 1s linear infinite" }} />
-                                                        {isActive ? "Active" : "Running initial sync"}
+                                                    <span style={{ fontSize: 12, display: "flex", alignItems: "center", gap: 4, color: isActive ? "#065f46" : isIndexing ? "#b45309" : "#6b7280", fontWeight: 600 }}>
+                                                        {isActive && "✓"}
+                                                        {isIndexing && <div style={{ width: 10, height: 10, border: "2px solid #f59e0b", borderTopColor: "transparent", borderRadius: "50%", animation: "spin 1s linear infinite" }} />}
+                                                        {isActive ? "Active" : isIndexing ? "Running initial sync" : "Pending"}
                                                     </span>
+                                                </div>
+                                                <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8 }}>
+                                                    <span style={{ fontSize: 12, color: "#6b7280" }}>Objects indexed</span>
+                                                    <span style={{ fontSize: 12, color: "#111827", fontWeight: 600 }}>{indexStatus.index_count.toLocaleString()}</span>
                                                 </div>
                                                 <div style={{ display: "flex", justifyContent: "space-between" }}>
                                                     <span style={{ fontSize: 12, color: "#6b7280" }}>Started by</span>
                                                     <span style={{ fontSize: 12, color: "#111827", fontWeight: 500 }}>objects-data-funnel</span>
                                                 </div>
                                             </div>
-                                            <div
-                                                onClick={() => { setShowIndexMenu(false); setSubTab("Index Status"); }}
-                                                style={{ padding: "10px 16px", fontSize: 13, color: "#2563eb", fontWeight: 500, cursor: "pointer", display: "flex", alignItems: "center", gap: 4 }}
-                                                onMouseEnter={e => e.currentTarget.style.background = "#eff6ff"}
-                                                onMouseLeave={e => e.currentTarget.style.background = "transparent"}
-                                            >
-                                                View index status <span style={{ marginLeft: "auto" }}>→</span>
+                                            <div style={{ padding: 8 }}>
+                                                <div
+                                                    onClick={() => { setShowIndexMenu(false); setSubTab("Index Status"); }}
+                                                    style={{ padding: "8px 12px", fontSize: 13, color: "#2563eb", fontWeight: 500, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "space-between", borderRadius: 4 }}
+                                                    onMouseEnter={e => e.currentTarget.style.background = "#eff6ff"}
+                                                    onMouseLeave={e => e.currentTarget.style.background = "transparent"}
+                                                >
+                                                    View index status →
+                                                </div>
+                                                <div
+                                                    onClick={() => { setShowIndexMenu(false); handleReindex(); }}
+                                                    style={{ padding: "8px 12px", fontSize: 13, color: isIndexing ? "#9ca3af" : "#374151", fontWeight: 500, cursor: isIndexing ? "not-allowed" : "pointer", display: "flex", alignItems: "center", justifyContent: "space-between", borderRadius: 4 }}
+                                                    onMouseEnter={e => { if (!isIndexing) e.currentTarget.style.background = "#f3f4f6"; }}
+                                                    onMouseLeave={e => e.currentTarget.style.background = "transparent"}
+                                                >
+                                                    ↻ Re-index now
+                                                </div>
                                             </div>
                                         </div>
                                     )}
@@ -1625,9 +1835,55 @@ function ObjectTypeDetail({
                 {/* ─ DATASOURCES TAB ─ */}
                 {subTab === "Datasources" && (
                     <div style={{ padding: 32, maxWidth: 1100, margin: "0 auto" }}>
-                        {/* Object Storage V2 card */}
+
+                        {/* ── Monitor Modal ── */}
+                        {showMonitorModal && (
+                            <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.4)", zIndex: 2000, display: "flex", alignItems: "center", justifyContent: "center" }} onClick={() => setShowMonitorModal(false)}>
+                                <div style={{ background: "#fff", borderRadius: 10, width: 520, boxShadow: "0 20px 40px rgba(0,0,0,0.2)" }} onClick={e => e.stopPropagation()}>
+                                    <div style={{ padding: "18px 24px", borderBottom: "1px solid #e5e7eb", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                                        <div style={{ fontWeight: 700, fontSize: 15, color: "#111827" }}>⚡ Monitor health — {ot.display_name}</div>
+                                        <button onClick={() => setShowMonitorModal(false)} style={{ background: "none", border: "none", cursor: "pointer", color: "#6b7280", fontSize: 18 }}>✕</button>
+                                    </div>
+                                    <div style={{ padding: 24 }}>
+                                        <p style={{ fontSize: 13, color: "#6b7280", margin: "0 0 16px" }}>Configure alerts for this object type. Alerts are delivered via email and in-platform notifications.</p>
+                                        <div style={{ display: "grid", gap: 0, border: "1px solid #e5e7eb", borderRadius: 8, overflow: "hidden" }}>
+                                            {[
+                                                { label: "Indexing failures", desc: "Alert when indexing job fails 2+ times consecutively", enabled: true, color: "#ef4444" },
+                                                { label: "Slow sync (>10 min)", desc: "Alert when sync takes longer than 10 minutes", enabled: false, color: "#f59e0b" },
+                                                { label: "Object count drop >10%", desc: "Alert when indexed object count drops significantly", enabled: true, color: "#2563eb" },
+                                                { label: "Schema drift", desc: "Alert when source schema changes unexpectedly", enabled: false, color: "#7c3aed" }
+                                            ].map((alert, i, arr) => (
+                                                <div key={i} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "14px 16px", borderBottom: i < arr.length - 1 ? "1px solid #f3f4f6" : "none", background: i % 2 === 0 ? "#fff" : "#fafafa" }}>
+                                                    <div>
+                                                        <div style={{ fontSize: 13, fontWeight: 600, color: "#111827", display: "flex", alignItems: "center", gap: 8 }}>
+                                                            <div style={{ width: 8, height: 8, borderRadius: "50%", background: alert.color, flexShrink: 0 }} />
+                                                            {alert.label}
+                                                        </div>
+                                                        <div style={{ fontSize: 11, color: "#6b7280", marginTop: 2, paddingLeft: 16 }}>{alert.desc}</div>
+                                                    </div>
+                                                    <div style={{ width: 38, height: 22, borderRadius: 11, background: alert.enabled ? "#16a34a" : "#d1d5db", position: "relative", cursor: "pointer", flexShrink: 0, marginLeft: 16 }} title={alert.enabled ? "Enabled — click to disable" : "Disabled — click to enable"}>
+                                                        <div style={{ width: 16, height: 16, borderRadius: "50%", background: "#fff", position: "absolute", top: 3, left: alert.enabled ? 19 : 3, boxShadow: "0 1px 3px rgba(0,0,0,0.2)" }} />
+                                                    </div>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
+                                    <div style={{ padding: "14px 24px", borderTop: "1px solid #e5e7eb", display: "flex", justifyContent: "flex-end", gap: 10, background: "#f9fafb", borderRadius: "0 0 10px 10px" }}>
+                                        <button onClick={() => setShowMonitorModal(false)} style={{ background: "white", border: "1px solid #d1d5db", color: "#374151", borderRadius: 6, padding: "7px 18px", cursor: "pointer", fontSize: 13, fontWeight: 500 }}>Cancel</button>
+                                        <button onClick={() => setShowMonitorModal(false)} style={{ background: "#2563eb", border: "none", color: "white", borderRadius: 6, padding: "7px 18px", cursor: "pointer", fontSize: 13, fontWeight: 600 }}>Save alert config</button>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+
+                        {/* ── Object Storage V2 (collapsible) ── */}
                         <div style={{ border: "1px solid #e5e7eb", borderRadius: 8, marginBottom: 24, overflow: "hidden", background: "#ffffff" }}>
-                            <div style={{ padding: "16px 20px", display: "flex", alignItems: "center", justifyContent: "space-between", borderBottom: "1px solid #e5e7eb" }}>
+                            <div
+                                onClick={() => setOsv2Collapsed(c => !c)}
+                                style={{ padding: "16px 20px", display: "flex", alignItems: "center", justifyContent: "space-between", borderBottom: osv2Collapsed ? "none" : "1px solid #e5e7eb", cursor: "pointer", userSelect: "none" as const }}
+                                onMouseEnter={e => (e.currentTarget.style.background = "#fafafa")}
+                                onMouseLeave={e => (e.currentTarget.style.background = "transparent")}
+                            >
                                 <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
                                     <div style={{ width: 32, height: 32, background: "#f3f4f6", borderRadius: 6, display: "flex", alignItems: "center", justifyContent: "center" }}>
                                         <Database size={16} color="#4b5563" />
@@ -1637,58 +1893,67 @@ function ObjectTypeDetail({
                                         <div style={{ fontSize: 12, color: "#6b7280" }}>The backend service that stores and serves information about objects</div>
                                     </div>
                                 </div>
-                                <ChevronDown size={16} color="#6b7280" />
+                                <ChevronDown size={16} color="#6b7280" style={{ transform: osv2Collapsed ? "rotate(-90deg)" : "rotate(0deg)", transition: "transform 0.2s" }} />
                             </div>
-                            <div style={{ padding: "16px 20px", background: "#f9fafb", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-                                <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                                    <div style={{ width: 24, height: 24, background: "#e5e7eb", borderRadius: 5, display: "flex", alignItems: "center", justifyContent: "center" }}><Database size={12} color="#4b5563" /></div>
-                                    <div>
-                                        <div style={{ fontSize: 13, fontWeight: 600, color: "#111827" }}>Object Storage V2</div>
-                                        <div style={{ fontSize: 11, color: "#6b7280" }}>Default object data store</div>
+                            {!osv2Collapsed && (
+                                <div style={{ padding: "14px 20px", background: "#f9fafb", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                                    <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                                        <div style={{ width: 24, height: 24, background: "#e5e7eb", borderRadius: 5, display: "flex", alignItems: "center", justifyContent: "center" }}><Database size={12} color="#4b5563" /></div>
+                                        <div>
+                                            <div style={{ fontSize: 13, fontWeight: 600, color: "#111827" }}>Object Storage V2</div>
+                                            <div style={{ fontSize: 11, color: "#6b7280" }}>Default object data store</div>
+                                        </div>
+                                    </div>
+                                    <div style={{ display: "flex", alignItems: "center", gap: 24, fontSize: 13, color: "#6b7280" }}>
+                                        <span>Data: <span
+                                            onClick={e => { e.stopPropagation(); handleReindex(); }}
+                                            title="Click to trigger re-sync"
+                                            style={{ color: indexStatus.last_synced ? "#2563eb" : "#dc2626", fontWeight: 500, cursor: "pointer", textDecoration: "underline dotted" }}
+                                        >{indexStatus.last_synced ? `${Math.max(0, Math.round((Date.now() - new Date(indexStatus.last_synced).getTime()) / 60000))}m ago` : "never"}</span></span>
+                                        <span>Schema: <span style={{ color: "#16a34a", fontWeight: 600 }}>Up to date</span></span>
                                     </div>
                                 </div>
-                                <div style={{ display: "flex", alignItems: "center", gap: 24, fontSize: 13, color: "#6b7280" }}>
-                                    <span>Data: <span style={{ color: "#2563eb", fontWeight: 500 }}>{indexStatus.last_synced ? `${Math.round((Date.now() - new Date(indexStatus.last_synced).getTime()) / 60000)} minutes ago` : "never"}</span></span>
-                                    <span>Schema: <span style={{ color: "#2563eb", fontWeight: 500 }}>Up to date</span></span>
-                                </div>
-                            </div>
+                            )}
                         </div>
 
-                        {/* Live pipeline diagram */}
+                        {/* ── Live pipeline ── */}
                         <div style={{ border: "1px solid #e5e7eb", borderRadius: 8, marginBottom: 24, overflow: "hidden", background: "#ffffff" }}>
                             <div style={{ padding: "16px 20px", borderBottom: "1px solid #e5e7eb", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                                 <div>
                                     <div style={{ fontSize: 14, fontWeight: 600, color: "#111827" }}>Live pipeline</div>
                                     <div style={{ fontSize: 12, color: "#6b7280", marginTop: 2 }}>Append the latest changes made to any backing datasources into relevant stores.</div>
                                 </div>
-                                <button onClick={handleReindex} style={{ background: "none", border: "1px solid #d1d5db", color: "#4b5563", borderRadius: 6, padding: "6px 12px", cursor: "pointer", fontSize: 12, display: "flex", alignItems: "center", gap: 6, fontWeight: 500 }}>
-                                    ↻ Re-sync
+                                <button
+                                    onClick={handleReindex}
+                                    disabled={isDraft || isIndexing}
+                                    style={{ background: "none", border: "1px solid #d1d5db", color: isDraft || isIndexing ? "#9ca3af" : "#4b5563", borderRadius: 6, padding: "6px 12px", cursor: isDraft || isIndexing ? "not-allowed" : "pointer", fontSize: 12, display: "flex", alignItems: "center", gap: 6, fontWeight: 500 }}
+                                >
+                                    {isIndexing
+                                        ? <><div style={{ width: 10, height: 10, border: "2px solid #f59e0b", borderTopColor: "transparent", borderRadius: "50%", animation: "spin 0.8s linear infinite" }} /> Syncing…</>
+                                        : "↻ Re-sync"}
                                 </button>
                             </div>
                             <div style={{ padding: "32px 20px", background: "#f9fafb" }}>
-                                {/* Pipeline stages */}
-                                <div style={{ display: "flex", alignItems: "center", gap: 0, overflowX: "auto" }}>
+                                <div style={{ display: "flex", alignItems: "center", justifyContent: "center", overflowX: "auto" }}>
                                     {[
-                                        { label: ot.backing_source ?? "all_orders", sublabel: "Source dataset", color: "#2563eb", status: "active" },
-                                        { label: "Changelog", sublabel: "Captures row changes", color: "#10b981", status: isActive ? "active" : isIndexing ? "running" : "pending" },
-                                        { label: "Merge changes", sublabel: "Deduplicates events", color: "#10b981", status: isActive ? "active" : isIndexing ? "running" : "pending" },
-                                        { label: "Indexing", sublabel: `${indexStatus.index_count.toLocaleString()} rows`, color: isActive ? "#10b981" : isIndexing ? "#f59e0b" : "#9ca3af", status: isActive ? "active" : isIndexing ? "running" : "pending" },
-                                        { label: "Object Storage V2", sublabel: "Committed store", color: isActive ? "#10b981" : "#9ca3af", status: isActive ? "active" : "pending" }
+                                        { label: ot.backing_source ?? "dataset", sublabel: "Source dataset", color: "#2563eb", status: "active" as const },
+                                        { label: "Changelog", sublabel: "Captures row changes", color: "#10b981", status: (isActive ? "active" : isIndexing ? "running" : "pending") as "active" | "running" | "pending" },
+                                        { label: "Merge changes", sublabel: "Deduplicates events", color: "#10b981", status: (isActive ? "active" : isIndexing ? "running" : "pending") as "active" | "running" | "pending" },
+                                        { label: "Indexing", sublabel: `${indexStatus.index_count.toLocaleString()} rows`, color: isActive ? "#10b981" : isIndexing ? "#f59e0b" : "#9ca3af", status: (isActive ? "active" : isIndexing ? "running" : "pending") as "active" | "running" | "pending" },
+                                        { label: "Object Storage V2", sublabel: "Committed store", color: isActive ? "#10b981" : "#9ca3af", status: (isActive ? "active" : "pending") as "active" | "pending" }
                                     ].map((stage, i, arr) => (
                                         <div key={stage.label} style={{ display: "flex", alignItems: "center" }}>
-                                            <div style={{ textAlign: "center", minWidth: 130 }}>
-                                                <div style={{ width: 40, height: 40, borderRadius: 8, background: stage.status === "active" ? "#ecfdf5" : stage.status === "running" ? "#fffbeb" : "#ffffff", border: `1.5px solid ${stage.color}`, display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 8px", position: "relative" }}>
-                                                    {stage.status === "running" && (
-                                                        <div style={{ width: 16, height: 16, border: `2px solid ${stage.color}`, borderTopColor: "transparent", borderRadius: "50%", animation: "spin 0.8s linear infinite" }} />
-                                                    )}
-                                                    {stage.status === "active" && <div style={{ color: stage.color, fontSize: 16, fontWeight: 700 }}>✓</div>}
+                                            <div style={{ textAlign: "center", width: 120 }}>
+                                                <div style={{ width: 42, height: 42, borderRadius: 10, background: stage.status === "active" ? "#ecfdf5" : stage.status === "running" ? "#fffbeb" : "#fff", border: `2px solid ${stage.color}`, display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 8px" }}>
+                                                    {stage.status === "running" && <div style={{ width: 16, height: 16, border: `2.5px solid ${stage.color}`, borderTopColor: "transparent", borderRadius: "50%", animation: "spin 0.8s linear infinite" }} />}
+                                                    {stage.status === "active" && <span style={{ color: stage.color, fontSize: 18, fontWeight: 700 }}>✓</span>}
                                                     {stage.status === "pending" && <div style={{ width: 10, height: 10, borderRadius: "50%", background: "#d1d5db" }} />}
                                                 </div>
-                                                <div style={{ fontSize: 12, fontWeight: 600, color: stage.status !== "pending" ? "#111827" : "#6b7280" }}>{stage.label}</div>
-                                                <div style={{ fontSize: 11, color: "#6b7280", marginTop: 2 }}>{stage.sublabel}</div>
+                                                <div style={{ fontSize: 12, fontWeight: 600, color: stage.status === "pending" ? "#9ca3af" : "#111827", wordBreak: "break-word" as const }}>{stage.label}</div>
+                                                <div style={{ fontSize: 11, color: stage.status === "running" ? "#f59e0b" : "#6b7280", marginTop: 2 }}>{stage.sublabel}</div>
                                             </div>
                                             {i < arr.length - 1 && (
-                                                <div style={{ height: 2, width: 40, background: stage.status === "active" ? "#10b981" : "#d1d5db", flexShrink: 0 }} />
+                                                <div style={{ width: 36, flexShrink: 0, height: 2, background: stage.status === "active" ? "#10b981" : "#d1d5db", margin: "0 0 20px" }} />
                                             )}
                                         </div>
                                     ))}
@@ -1696,36 +1961,58 @@ function ObjectTypeDetail({
                             </div>
                         </div>
 
-                        {/* Monitor health strip */}
+                        {/* ── Monitor health ── */}
                         <div style={{ border: "1px solid #e5e7eb", borderRadius: 8, padding: "16px 20px", marginBottom: 24, background: "#ffffff", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
                             <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-                                <div style={{ color: "#4b5563", fontSize: 20 }}>⚡</div>
+                                <span style={{ fontSize: 22 }}>⚡</span>
                                 <div>
                                     <div style={{ fontSize: 14, fontWeight: 600, color: "#111827" }}>Monitor the health of this object type</div>
                                     <div style={{ fontSize: 12, color: "#6b7280" }}>Configure alerts for failing or slow indexing jobs</div>
                                 </div>
                             </div>
-                            <button style={{ background: "none", border: "1px solid #d1d5db", color: "#4b5563", borderRadius: 6, padding: "6px 14px", cursor: "pointer", fontSize: 12, fontWeight: 500 }}>Monitor this object type ↗</button>
+                            <button
+                                onClick={() => setShowMonitorModal(true)}
+                                style={{ background: "none", border: "1px solid #d1d5db", color: "#4b5563", borderRadius: 6, padding: "6px 14px", cursor: "pointer", fontSize: 12, fontWeight: 500, display: "flex", alignItems: "center", gap: 6 }}
+                                onMouseEnter={e => { e.currentTarget.style.background = "#f9fafb"; e.currentTarget.style.borderColor = "#9ca3af"; }}
+                                onMouseLeave={e => { e.currentTarget.style.background = "none"; e.currentTarget.style.borderColor = "#d1d5db"; }}
+                            >
+                                Monitor this object type ↗
+                            </button>
                         </div>
 
-                        {/* Indexing Metadata */}
+                        {/* ── Indexing Metadata — functional storage selector ── */}
                         <div style={{ border: "1px solid #e5e7eb", borderRadius: 8, marginBottom: 24, overflow: "hidden", background: "#ffffff" }}>
-                            <div style={{ padding: "16px 20px", borderBottom: "1px solid #e5e7eb", display: "flex", alignItems: "center", gap: 10 }}>
-                                <Settings size={16} color="#6b7280" />
-                                <span style={{ fontSize: 14, fontWeight: 600, color: "#111827" }}>Indexing Metadata</span>
+                            <div style={{ padding: "16px 20px", borderBottom: "1px solid #e5e7eb", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                                <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                                    <Settings size={16} color="#6b7280" />
+                                    <span style={{ fontSize: 14, fontWeight: 600, color: "#111827" }}>Indexing Metadata</span>
+                                </div>
+                                {savingStorage && <span style={{ fontSize: 11, color: "#6b7280", display: "flex", alignItems: "center", gap: 4 }}><div style={{ width: 10, height: 10, border: "2px solid #6b7280", borderTopColor: "transparent", borderRadius: "50%", animation: "spin 0.8s linear infinite" }} /> Saving…</span>}
                             </div>
                             <div style={{ padding: "20px", background: "#ffffff" }}>
-                                <p style={{ fontSize: 13, color: "#111827", marginBottom: 16 }}>What should the target backing store be for this object type?</p>
+                                <p style={{ fontSize: 13, color: "#374151", marginBottom: 16 }}>
+                                    What should the target backing store be for <span style={{ color: "#2563eb", fontWeight: 500, cursor: "pointer" }}>this object type</span>?
+                                </p>
                                 <div style={{ display: "flex", gap: 16 }}>
-                                    <label style={{ display: "flex", alignItems: "center", gap: 10, border: "1px solid #d1d5db", borderRadius: 8, padding: "12px 16px", cursor: "pointer", flex: 1 }}>
-                                        <input type="radio" name="storage" defaultChecked={false} />
-                                        <span style={{ fontSize: 13, color: "#4b5563" }}>Object Storage v1</span>
-                                    </label>
-                                    <label style={{ display: "flex", alignItems: "center", gap: 10, border: "2px solid #3b82f6", borderRadius: 8, padding: "12px 16px", cursor: "pointer", flex: 1, background: "#f0fdfa" }}>
-                                        <input type="radio" name="storage" defaultChecked={true} />
-                                        <span style={{ fontSize: 13, color: "#111827", fontWeight: 600 }}>Object Storage v2</span>
-                                        <span style={{ background: "#e0e7ff", color: "#2563eb", fontSize: 11, borderRadius: 4, padding: "2px 8px", marginLeft: "auto", fontWeight: 500 }}>Recommended</span>
-                                    </label>
+                                    {(["v1", "v2"] as const).map(v => (
+                                        <div
+                                            key={v}
+                                            onClick={() => handleStorageChange(v)}
+                                            style={{
+                                                display: "flex", alignItems: "center", gap: 12, borderRadius: 8, padding: "12px 16px", cursor: "pointer", flex: 1, transition: "all 0.15s",
+                                                border: storageVersion === v ? "2px solid #3b82f6" : "1px solid #d1d5db",
+                                                background: storageVersion === v ? "#eff6ff" : "#ffffff"
+                                            }}
+                                        >
+                                            <div style={{ width: 18, height: 18, borderRadius: "50%", border: `2px solid ${storageVersion === v ? "#3b82f6" : "#d1d5db"}`, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                                                {storageVersion === v && <div style={{ width: 9, height: 9, borderRadius: "50%", background: "#3b82f6" }} />}
+                                            </div>
+                                            <span style={{ fontSize: 13, color: storageVersion === v ? "#1e40af" : "#4b5563", fontWeight: storageVersion === v ? 600 : 400 }}>
+                                                Object Storage {v === "v1" ? "v1" : "v2"}
+                                            </span>
+                                            {v === "v2" && <span style={{ background: "#e0e7ff", color: "#2563eb", fontSize: 11, borderRadius: 4, padding: "2px 8px", marginLeft: "auto", fontWeight: 500 }}>Recommended</span>}
+                                        </div>
+                                    ))}
                                 </div>
                             </div>
                         </div>
@@ -1734,12 +2021,24 @@ function ObjectTypeDetail({
                         <div style={{ border: "1px solid #e5e7eb", borderRadius: 8, overflow: "hidden", background: "#ffffff" }}>
                             <div style={{ padding: "12px 16px", borderBottom: "1px solid #e5e7eb", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
                                 <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                                    <div style={{ width: 10, height: 10, borderRadius: "50%", background: "#3b82f6" }} />
+                                    <div style={{ width: 10, height: 10, borderRadius: "50%", background: isActive ? "#10b981" : "#3b82f6" }} />
                                     <span style={{ fontSize: 13, fontWeight: 600, color: "#111827" }}>[{ot.api_name.substring(0, 4)}] {ot.display_name}</span>
+                                    {preview && <span style={{ fontSize: 11, color: "#6b7280", background: "#f3f4f6", borderRadius: 10, padding: "2px 8px" }}>{preview.total?.toLocaleString() ?? 0} rows</span>}
                                 </div>
                                 <div style={{ display: "flex", gap: 8 }}>
-                                    <button style={{ background: "none", border: "1px solid #d1d5db", color: "#4b5563", borderRadius: 4, padding: "4px 10px", cursor: "pointer", fontSize: 12, fontWeight: 500 }}>Preview objects</button>
-                                    <button style={{ background: "none", border: "1px solid #d1d5db", color: "#4b5563", borderRadius: 4, padding: "4px 10px", cursor: "pointer", fontSize: 12, display: "flex", alignItems: "center", gap: 4, fontWeight: 500 }}>Preview table <ChevronDown size={12} /></button>
+                                    {["Preview objects", "Preview table"].map(btn => (
+                                        <button
+                                            key={btn}
+                                            onClick={() => {
+                                                if (btn === "Preview objects") {
+                                                    // Show objects as cards / key-value view
+                                                    setSubTab("Overview");
+                                                    setTimeout(() => setSubTab("Datasources"), 10);
+                                                }
+                                            }}
+                                            style={{ background: btn === "Preview table" ? "#eff6ff" : "none", border: `1px solid ${btn === "Preview table" ? "#bfdbfe" : "#d1d5db"}`, color: btn === "Preview table" ? "#2563eb" : "#4b5563", borderRadius: 4, padding: "4px 10px", cursor: "pointer", fontSize: 12, fontWeight: btn === "Preview table" ? 600 : 500, display: "flex", alignItems: "center", gap: 4 }}
+                                        >{btn}{btn === "Preview table" && <ChevronDown size={11} />}</button>
+                                    ))}
                                 </div>
                             </div>
                             {/* Info bar */}
@@ -1791,11 +2090,11 @@ function ObjectTypeDetail({
                 {subTab === "Index Status" && (() => {
                     const progressPct = isActive ? 100 : isIndexing ? Math.min(95, Math.round((indexStatus.index_count / Math.max(1, indexStatus.index_count + 10)) * 100)) : 0;
                     const stages = [
-                        { id: "source", label: "Source", desc: ot.backing_source || "dataset", icon: "🗄️", status: "complete" as const },
-                        { id: "changelog", label: "Changelog", desc: "Captures row changes", icon: "📋", status: isActive || isIndexing ? "complete" as const : "pending" as const },
-                        { id: "merge", label: "Merge", desc: "Deduplicates rows", icon: "🔀", status: isActive || isIndexing ? "complete" as const : "pending" as const },
-                        { id: "index", label: "Indexing", desc: `${indexStatus.index_count.toLocaleString()} rows`, icon: "⚙️", status: isActive ? "complete" as const : isIndexing ? "running" as const : "pending" as const },
-                        { id: "osv2", label: "Object Storage V2", desc: "Live object store", icon: "✅", status: isActive ? "complete" as const : "pending" as const },
+                        { id: "source", label: "Source", desc: ot.backing_source || "dataset", icon: <Database size={20} />, status: "complete" as const },
+                        { id: "changelog", label: "Changelog", desc: "Captures row changes", icon: <FileText size={20} />, status: isActive || isIndexing ? "complete" as const : "pending" as const },
+                        { id: "merge", label: "Merge", desc: "Deduplicates rows", icon: <GitMerge size={20} />, status: isActive || isIndexing ? "complete" as const : "pending" as const },
+                        { id: "index", label: "Indexing", desc: `${indexStatus.index_count.toLocaleString()} rows`, icon: <Settings size={20} />, status: isActive ? "complete" as const : isIndexing ? "running" as const : "pending" as const },
+                        { id: "osv2", label: "Object Storage V2", desc: "Live object store", icon: <span style={{ display: "flex", alignItems: "center", justifyContent: "center", color: "#10b981", fontSize: 20 }}>✓</span>, status: isActive ? "complete" as const : "pending" as const },
                     ];
                     return (
                         <div style={{ padding: "32px", maxWidth: 900, margin: "0 auto" }}>
@@ -1935,7 +2234,7 @@ function ObjectTypeDetail({
                             <button style={{ background: "#2563eb", border: "none", color: "#fff", borderRadius: 6, padding: "6px 12px", cursor: "pointer", fontSize: 12, fontWeight: 500 }}>Configure Security</button>
                         </div>
                         <div style={{ background: "#ffffff", border: "1px solid #e5e7eb", borderRadius: 8, padding: 32, textAlign: "center" }}>
-                            <div style={{ color: "#10b981", fontSize: 32, marginBottom: 12 }}>🛡️</div>
+                            <div style={{ color: "#10b981", marginBottom: 16, display: "flex", justifyContent: "center" }}><Shield size={32} /></div>
                             <div style={{ fontWeight: 600, color: "#111827", marginBottom: 8 }}>Default Permissions Applies</div>
                             <div style={{ color: "#6b7280", fontSize: 13, maxWidth: 400, margin: "0 auto" }}>This object uses the organization&apos;s default security roles. Users with &apos;Viewer&apos; role can read, and &apos;Editor&apos; role can mutate.</div>
                         </div>

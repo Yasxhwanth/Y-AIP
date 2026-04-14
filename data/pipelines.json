@@ -1,5 +1,14 @@
 [
   {
+    "id": "n3mb0g",
+    "projectId": "m1dt76",
+    "name": "test pipeline",
+    "folder_id": "m1dt76",
+    "type": "batch",
+    "compute": "standard",
+    "created_at": 1776086982439
+  },
+  {
     "id": "fb9sdu",
     "projectId": "hbznyb",
     "name": "Pipeline Builder - 2026-04-07 16:46:59",

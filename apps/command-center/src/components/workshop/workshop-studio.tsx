@@ -20,6 +20,8 @@ import { useParams, useRouter } from "next/navigation";
 interface WidgetConfig {
     objectType: string;
     title: string;
+    columns?: TableColumnConfig[];
+    sortBy?: string;
 }
 
 interface WidgetInstance {
@@ -44,6 +46,44 @@ interface Variable {
     objectType?: string;
 }
 
+interface OntologyObjectType {
+    api_name: string;
+    display_name: string;
+    plural_display_name?: string;
+    index_status?: string;
+    index_count?: number;
+}
+
+interface OntologyPropertySummary {
+    api_name: string;
+    display_name: string;
+}
+
+interface TableColumnConfig {
+    id: string;
+    originalName: string;
+    name: string;
+}
+
+type LayoutTemplateName = "Details" | "Grid" | "Inbox" | "Overview" | "Settings";
+
+function toSafeNumber(value: unknown): number {
+    if (typeof value === "number" && Number.isFinite(value)) return value;
+    if (typeof value === "string") {
+        const parsed = Number(value);
+        return Number.isFinite(parsed) ? parsed : 0;
+    }
+    if (value && typeof value === "object") {
+        const v = value as { low?: unknown; high?: unknown; toNumber?: () => number; toInt?: () => number };
+        if (typeof v.toNumber === "function") return v.toNumber();
+        if (typeof v.toInt === "function") return v.toInt();
+        if (typeof v.low === "number" && typeof v.high === "number") {
+            return v.high * 4294967296 + (v.low >>> 0);
+        }
+    }
+    return 0;
+}
+
 export function WorkshopStudio() {
     const params = useParams();
     const router = useRouter();
@@ -63,10 +103,18 @@ export function WorkshopStudio() {
     const [selectedElement, setSelectedElement] = useState<"page" | "header" | string>("page");
     const [showWidgetModal, setShowWidgetModal] = useState(false);
     const [showVariableModal, setShowVariableModal] = useState(false);
+    const [editingVariableId, setEditingVariableId] = useState<string | null>(null);
     const [searchQuery, setSearchQuery] = useState("");
     const [saving, setSaving] = useState(false);
     const [leftPanelWidth, setLeftPanelWidth] = useState(280);
     const [isResizing, setIsResizing] = useState(false);
+    const [ontologyObjects, setOntologyObjects] = useState<OntologyObjectType[]>([]);
+    const [loadingOntologyObjects, setLoadingOntologyObjects] = useState(true);
+    const [layoutTemplate, setLayoutTemplate] = useState<LayoutTemplateName>("Overview");
+    const [layoutDirection, setLayoutDirection] = useState<"columns" | "rows">("columns");
+    const [sectionFlex, setSectionFlex] = useState({ left: 1, right: 1 });
+    const [widgetRows, setWidgetRows] = useState<Record<string, { rows: Record<string, unknown>[]; loading: boolean }>>({});
+    const [showLayoutPalette, setShowLayoutPalette] = useState(true);
 
     const handleMouseDown = (e: React.MouseEvent) => {
         e.preventDefault();
@@ -108,6 +156,74 @@ export function WorkshopStudio() {
             });
     }, [moduleId]);
 
+    useEffect(() => {
+        fetch("/api/ontology-admin/object-types")
+            .then(res => res.json())
+            .then((data) => {
+                const list = Array.isArray(data) ? data : [];
+                setOntologyObjects(
+                    list.map((ot: any) => ({
+                        ...ot,
+                        index_count: toSafeNumber(ot?.index_count),
+                    }))
+                );
+            })
+            .catch((err) => {
+                console.error("Failed to fetch ontology object types:", err);
+                setOntologyObjects([]);
+            })
+            .finally(() => setLoadingOntologyObjects(false));
+    }, []);
+
+    const workshopReadyObjects = ontologyObjects.filter((ot) => ot.index_status === "active");
+
+    useEffect(() => {
+        const targets = dashboard.widgets.filter((w) => w.type === "ObjectTable" && w.config.objectType);
+        if (!targets.length) return;
+
+        targets.forEach((w) => {
+            setWidgetRows((prev) => ({ ...prev, [w.id]: { rows: prev[w.id]?.rows ?? [], loading: true } }));
+            fetch(`/api/ontology-admin/object-types/${encodeURIComponent(w.config.objectType)}/objects?limit=200`)
+                .then((res) => res.json())
+                .then(async (payload) => {
+                    const objects = Array.isArray(payload?.objects)
+                        ? payload.objects
+                        : (Array.isArray(payload?.rows) ? payload.rows : []);
+                    if (objects.length > 0) {
+                        setWidgetRows((prev) => ({ ...prev, [w.id]: { rows: objects, loading: false } }));
+                        return;
+                    }
+
+                    // Fallback: if indexed objects endpoint is empty, use backing dataset preview
+                    const detailRes = await fetch(`/api/ontology-admin/object-types/${encodeURIComponent(w.config.objectType)}`);
+                    const detail = detailRes.ok ? await detailRes.json() : null;
+                    const backing = detail?.backing_source;
+                    if (!backing) {
+                        setWidgetRows((prev) => ({ ...prev, [w.id]: { rows: [], loading: false } }));
+                        return;
+                    }
+
+                    const previewRes = await fetch(`/api/ontology-admin/datasets/${encodeURIComponent(backing)}/preview`);
+                    const preview = previewRes.ok ? await previewRes.json() : null;
+                    const previewRows = Array.isArray(preview?.rows) ? preview.rows : [];
+                    setWidgetRows((prev) => ({ ...prev, [w.id]: { rows: previewRows, loading: false } }));
+                })
+                .catch(() => {
+                    setWidgetRows((prev) => ({ ...prev, [w.id]: { rows: [], loading: false } }));
+                });
+        });
+    }, [dashboard.widgets]);
+
+    const applyLayoutTemplate = (name: LayoutTemplateName) => {
+        setLayoutTemplate(name);
+        setLayoutDirection("columns");
+        if (name === "Details") setSectionFlex({ left: 2, right: 1 });
+        else if (name === "Grid") setSectionFlex({ left: 1, right: 1 });
+        else if (name === "Inbox") setSectionFlex({ left: 1.4, right: 1 });
+        else if (name === "Overview") setSectionFlex({ left: 1, right: 1.2 });
+        else setSectionFlex({ left: 1, right: 1.6 });
+    };
+
     const handleSave = async () => {
         setSaving(true);
         try {
@@ -122,13 +238,19 @@ export function WorkshopStudio() {
         setSaving(false);
     };
 
+    const selectedSectionSide: "left" | "right" = (() => {
+        if (selectedElement === "section_left") return "left";
+        if (selectedElement === "section_right") return "right";
+        if (typeof selectedElement === "string" && selectedElement.startsWith("section_widget_")) {
+            const widgetId = selectedElement.replace("section_", "");
+            const idx = dashboard.widgets.findIndex((w) => w.id === widgetId);
+            return idx <= 0 ? "left" : "right";
+        }
+        return "right";
+    })();
+
     return (
         <div style={{ height: "100vh", display: "flex", flexDirection: "column", background: "#f3f4f6", color: "#111827", fontFamily: "Inter, sans-serif", overflow: "hidden" }}>
-            {/* Notional Data Bar */}
-            <div style={{ height: 18, background: "#1e40af", color: "white", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 9, fontWeight: 700, letterSpacing: 0.5 }}>
-                NOTIONAL DATA - ONTOLOGIZE
-            </div>
-
             {/* Top Toolbar */}
             <header style={{ height: 40, background: "#ffffff", borderBottom: "1px solid #e5e7eb", display: "flex", alignItems: "center", justifyContent: "space-between", padding: "0 12px", flexShrink: 0, zIndex: 10 }}>
                 <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
@@ -214,16 +336,39 @@ export function WorkshopStudio() {
 
                         <div style={{ marginBottom: 24 }}>
                             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
-                                <div style={{ fontSize: 12, fontWeight: 700, color: "#374151" }}>Object types <span style={{ background: "#f3f4f6", padding: "2px 6px", borderRadius: 4, marginLeft: 4 }}>0</span></div>
+                                <div style={{ fontSize: 12, fontWeight: 700, color: "#374151" }}>Object types <span style={{ background: "#f3f4f6", padding: "2px 6px", borderRadius: 4, marginLeft: 4 }}>{workshopReadyObjects.length}</span></div>
                                 <Plus size={14} color="#2563eb" />
                             </div>
-                            <div style={{ display: "flex", gap: 12, alignItems: "center", padding: 12, background: "#ffffff", border: "1px dashed #d1d5db", borderRadius: 6 }}>
-                                <div style={{ width: 32, height: 32, background: "#f3f4f6", borderRadius: 6, display: "flex", alignItems: "center", justifyContent: "center" }}>
-                                    <Box size={18} color="#d1d5db" />
+                            {loadingOntologyObjects ? (
+                                <div style={{ display: "flex", gap: 12, alignItems: "center", padding: 12, background: "#ffffff", border: "1px dashed #d1d5db", borderRadius: 6 }}>
+                                    <div style={{ width: 32, height: 32, background: "#f3f4f6", borderRadius: 6, display: "flex", alignItems: "center", justifyContent: "center" }}>
+                                        <Box size={18} color="#d1d5db" />
+                                    </div>
+                                    <div style={{ flex: 1, height: 8, background: "#f3f4f6", borderRadius: 4 }}></div>
+                                    <ChevronRight size={14} color="#d1d5db" />
                                 </div>
-                                <div style={{ flex: 1, height: 8, background: "#f3f4f6", borderRadius: 4 }}></div>
-                                <ChevronRight size={14} color="#d1d5db" />
-                            </div>
+                            ) : (
+                                <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                                    {workshopReadyObjects.slice(0, 3).map((ot) => (
+                                        <div key={ot.api_name} style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 10px", border: "1px solid #e5e7eb", borderRadius: 6, background: "#ffffff" }}>
+                                            <div style={{ width: 24, height: 24, background: "#eef2ff", borderRadius: 5, display: "flex", alignItems: "center", justifyContent: "center" }}>
+                                                <Box size={13} color="#4f46e5" />
+                                            </div>
+                                            <div style={{ flex: 1, minWidth: 0 }}>
+                                                <div style={{ fontSize: 12, fontWeight: 600, color: "#111827", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                                                    {ot.plural_display_name || ot.display_name}
+                                                </div>
+                                                <div style={{ fontSize: 10, color: "#6b7280", marginTop: 1 }}>{ot.index_count ?? 0} objects</div>
+                                            </div>
+                                        </div>
+                                    ))}
+                                    {!workshopReadyObjects.length && (
+                                        <div style={{ fontSize: 11, color: "#6b7280", padding: "8px 0" }}>
+                                            No active indexed object types yet. Save and index an object type in Ontology Manager first.
+                                        </div>
+                                    )}
+                                </div>
+                            )}
                             <p style={{ fontSize: 11, color: "#6b7280", marginTop: 12 }}>Workshop applications are backed by objects data from the Foundry Ontology. Add an object type to get started.</p>
                             <button style={{ width: "100%", height: 32, background: "white", border: "1px solid #d1d5db", borderRadius: 6, fontSize: 12, fontWeight: 600, display: "flex", alignItems: "center", justifyContent: "center", gap: 6, color: "#374151", cursor: "pointer" }}>
                                 <Plus size={14} /> Add object set variable
@@ -243,12 +388,18 @@ export function WorkshopStudio() {
                 </div>
 
                 {/* Central Canvas */}
-                <div style={{ flex: 1, padding: 32, overflowY: "auto", position: "relative" }}>
+                <div style={{ flex: 1, padding: 18, overflowY: "auto", position: "relative", background: "#f8fafc" }}>
                     <div
                         onClick={() => setSelectedElement("page")}
                         style={{
-                            background: "#ffffff", border: selectedElement === "page" ? "2px solid #2563eb" : "1px solid #e5e7eb", borderRadius: 8,
-                            minHeight: "100%", position: "relative", boxShadow: "0 10px 15px -3px rgba(0,0,0,0.1)", display: "flex", flexDirection: "column"
+                            background: "#ffffff",
+                            border: selectedElement === "page" ? "2px solid #2563eb" : "1px solid #cbd5e1",
+                            borderRadius: 4,
+                            minHeight: "100%",
+                            position: "relative",
+                            boxShadow: "0 1px 2px rgba(15,23,42,0.06)",
+                            display: "flex",
+                            flexDirection: "column"
                         }}
                     >
                         {/* Page Header (Selectable) */}
@@ -266,44 +417,44 @@ export function WorkshopStudio() {
                         </div>
 
                         {/* Page Content area */}
-                        <div style={{ flex: 1, display: "flex", padding: 12, gap: 12 }}>
-                            <div style={{ flex: 1, display: "flex", gap: 16 }}>
+                        <div style={{ flex: 1, display: "flex", padding: 8 }}>
+                            <div style={{ flex: 1, display: "flex", gap: 0, flexDirection: layoutDirection === "columns" ? "row" : "column" }}>
                                 {/* Columns based on widgets */}
                                 {dashboard.widgets.length === 0 ? (
                                     <>
-                                        <div style={{ flex: 1, background: "#ffffff", border: "1px solid #d1d5db", borderRadius: 4, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 8, position: "relative" }}>
-                                            <div style={{ fontSize: 12, fontWeight: 600, color: "#374151", position: "absolute", top: 8, left: 8 }}>Section</div>
+                                        <div onClick={(e) => { e.stopPropagation(); setSelectedElement("section_left"); }} style={{ flex: sectionFlex.left, background: "#ffffff", border: "1px solid #d1d5db", borderRight: "0.5px solid #d1d5db", borderRadius: "2px 0 0 2px", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 10, position: "relative", minHeight: 520 }}>
+                                            <div style={{ fontSize: 11, fontWeight: 600, color: "#374151", position: "absolute", top: 0, left: 0, right: 0, height: 24, borderBottom: "1px solid #e5e7eb", background: "#f8fafc", display: "flex", alignItems: "center", paddingLeft: 8 }}>Section</div>
                                             <button
                                                 onClick={(e) => { e.stopPropagation(); setShowWidgetModal(true); }}
-                                                style={{ height: 32, padding: "0 24px", background: "white", border: "1px solid #d1d5db", borderRadius: 4, fontSize: 12, fontWeight: 600, color: "#2563eb", cursor: "pointer", display: "flex", alignItems: "center", gap: 6 }}
+                                                style={{ height: 30, minWidth: 130, padding: "0 16px", background: "white", border: "1px solid #d1d5db", borderRadius: 2, fontSize: 12, fontWeight: 600, color: "#2563eb", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}
                                             >
                                                 <Plus size={14} /> Add widget
                                             </button>
-                                            <button style={{ height: 32, padding: "0 24px", background: "white", border: "1px solid #d1d5db", borderRadius: 4, fontSize: 12, fontWeight: 600, color: "#4b5563", cursor: "pointer", display: "flex", alignItems: "center", gap: 6 }}>
+                                            <button style={{ height: 28, minWidth: 130, padding: "0 16px", background: "white", border: "1px solid #d1d5db", borderRadius: 2, fontSize: 12, fontWeight: 600, color: "#4b5563", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}>
                                                 <PanelLeft size={14} /> Set layout
                                             </button>
                                         </div>
-                                        <div style={{ flex: 1, background: "#ffffff", border: "1px solid #d1d5db", borderRadius: 4, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 8, position: "relative" }}>
-                                            <div style={{ fontSize: 12, fontWeight: 600, color: "#374151", position: "absolute", top: 8, left: 8 }}>Section</div>
+                                        <div onClick={(e) => { e.stopPropagation(); setSelectedElement("section_right"); }} style={{ flex: sectionFlex.right, background: "#ffffff", border: "1px solid #d1d5db", borderLeft: "0.5px solid #d1d5db", borderRadius: "0 2px 2px 0", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 10, position: "relative", minHeight: 520 }}>
+                                            <div style={{ fontSize: 11, fontWeight: 600, color: "#374151", position: "absolute", top: 0, left: 0, right: 0, height: 24, borderBottom: "1px solid #e5e7eb", background: "#f8fafc", display: "flex", alignItems: "center", paddingLeft: 8 }}>Section</div>
                                             <button
                                                 onClick={(e) => { e.stopPropagation(); setShowWidgetModal(true); }}
-                                                style={{ height: 32, padding: "0 24px", background: "white", border: "1px solid #d1d5db", borderRadius: 4, fontSize: 12, fontWeight: 600, color: "#2563eb", cursor: "pointer", display: "flex", alignItems: "center", gap: 6 }}
+                                                style={{ height: 30, minWidth: 130, padding: "0 16px", background: "white", border: "1px solid #d1d5db", borderRadius: 2, fontSize: 12, fontWeight: 600, color: "#2563eb", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}
                                             >
                                                 <Plus size={14} /> Add widget
                                             </button>
-                                            <button style={{ height: 32, padding: "0 24px", background: "white", border: "1px solid #d1d5db", borderRadius: 4, fontSize: 12, fontWeight: 600, color: "#4b5563", cursor: "pointer", display: "flex", alignItems: "center", gap: 6 }}>
+                                            <button style={{ height: 28, minWidth: 130, padding: "0 16px", background: "white", border: "1px solid #d1d5db", borderRadius: 2, fontSize: 12, fontWeight: 600, color: "#4b5563", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}>
                                                 <PanelLeft size={14} /> Set layout
                                             </button>
                                         </div>
                                     </>
                                 ) : (
                                     <>
-                                        {dashboard.widgets.map(w => (
+                                        {dashboard.widgets.map((w, idx) => (
                                             <div
                                                 key={w.id}
                                                 onClick={(e) => { e.stopPropagation(); setSelectedElement(`section_${w.id}`); }}
                                                 style={{
-                                                    flex: 1, background: "#ffffff", border: selectedElement === `section_${w.id}` ? "2px solid #2563eb" : "1px solid #d1d5db", borderRadius: 4,
+                                                    flex: idx === 0 ? sectionFlex.left : sectionFlex.right, background: "#ffffff", border: selectedElement === `section_${w.id}` ? "2px solid #2563eb" : "1px solid #d1d5db", borderRadius: 4,
                                                     display: "flex", flexDirection: "column", position: "relative", cursor: "pointer", overflow: "hidden", minHeight: 200
                                                 }}
                                             >
@@ -324,21 +475,47 @@ export function WorkshopStudio() {
                                                         </div>
                                                         <Settings size={14} color="#9ca3af" />
                                                     </div>
-                                                    <div style={{ flex: 1, padding: 12 }}>
+                                                    <div style={{ flex: 1, padding: 0 }}>
                                                         {w.type === "ObjectTable" && (
                                                             <div style={{ display: "flex", flexDirection: "column", height: "100%" }}>
-                                                                <div style={{ height: 24, background: "#f9fafb", borderBottom: "1px solid #e5e7eb", display: "flex", alignItems: "center", gap: 12, padding: "0 8px" }}>
-                                                                    <div style={{ width: 80, height: 8, background: "#e5e7eb", borderRadius: 4 }}></div>
-                                                                    <div style={{ width: 60, height: 8, background: "#e5e7eb", borderRadius: 4 }}></div>
-                                                                    <div style={{ width: 100, height: 8, background: "#e5e7eb", borderRadius: 4 }}></div>
-                                                                </div>
-                                                                {[1, 2, 3, 4, 5].map(i => (
-                                                                    <div key={i} style={{ height: 28, borderBottom: "1px solid #f3f4f6", display: "flex", alignItems: "center", gap: 12, padding: "0 8px" }}>
-                                                                        <div style={{ width: 80, height: 6, background: "#f9fafb", borderRadius: 3 }}></div>
-                                                                        <div style={{ width: 60, height: 6, background: "#f9fafb", borderRadius: 3 }}></div>
-                                                                        <div style={{ width: 100, height: 6, background: "#f9fafb", borderRadius: 3 }}></div>
-                                                                    </div>
-                                                                ))}
+                                                                {widgetRows[w.id]?.loading && <div style={{ padding: 12, fontSize: 12, color: "#6b7280" }}>Loading objects...</div>}
+                                                                {!widgetRows[w.id]?.loading && (
+                                                                    <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 11 }}>
+                                                                        <thead>
+                                                                            <tr style={{ background: "#f8fafc" }}>
+                                                                                {(w.config.columns && w.config.columns.length > 0 ? w.config.columns : [{ id: "title", name: "Title", originalName: "Title" }]).map((c) => (
+                                                                                    <th key={c.id} style={{ textAlign: "left", padding: "6px 8px", borderBottom: "1px solid #e5e7eb", color: "#475569", fontWeight: 600 }}>{c.name}</th>
+                                                                                ))}
+                                                                            </tr>
+                                                                        </thead>
+                                                                        <tbody>
+                                                                            {(widgetRows[w.id]?.rows ?? [])
+                                                                                .slice()
+                                                                                .sort((a, b) => {
+                                                                                    const key = w.config.sortBy;
+                                                                                    if (!key) return 0;
+                                                                                    const av = String((a as Record<string, unknown>)[key] ?? "");
+                                                                                    const bv = String((b as Record<string, unknown>)[key] ?? "");
+                                                                                    return av.localeCompare(bv);
+                                                                                })
+                                                                                .slice(0, 25)
+                                                                                .map((row, rIdx) => (
+                                                                                    <tr key={rIdx}>
+                                                                                        {(w.config.columns && w.config.columns.length > 0 ? w.config.columns : [{ id: "title", name: "Title", originalName: "Title" }]).map((c, cIdx) => (
+                                                                                            <td key={c.id} style={{ padding: "4px 8px", borderBottom: "1px solid #f1f5f9", color: "#0f172a" }}>
+                                                                                                {cIdx === 0 ? (
+                                                                                                    <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                                                                                                        <div style={{ width: 10, height: 10, background: "#3b82f6", borderRadius: 2, flexShrink: 0 }} />
+                                                                                                        <span>{String((row as Record<string, unknown>)[c.id] ?? "")}</span>
+                                                                                                    </div>
+                                                                                                ) : String((row as Record<string, unknown>)[c.id] ?? "")}
+                                                                                            </td>
+                                                                                        ))}
+                                                                                    </tr>
+                                                                                ))}
+                                                                        </tbody>
+                                                                    </table>
+                                                                )}
                                                             </div>
                                                         )}
                                                     </div>
@@ -346,7 +523,7 @@ export function WorkshopStudio() {
                                             </div>
                                         ))}
                                         {dashboard.widgets.length === 1 && (
-                                            <div style={{ flex: 1, background: "#f9fafb", border: "1px dashed #d1d5db", borderRadius: 4, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 8, position: "relative" }}>
+                                            <div onClick={(e) => { e.stopPropagation(); setSelectedElement("section_right"); }} style={{ flex: sectionFlex.right, background: "#f9fafb", border: "1px dashed #d1d5db", borderRadius: 4, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 8, position: "relative" }}>
                                                 <div style={{ fontSize: 12, fontWeight: 600, color: "#9ca3af", position: "absolute", top: 8, left: 8 }}>Empty space</div>
                                                 <button
                                                     onClick={(e) => { e.stopPropagation(); setShowWidgetModal(true); }}
@@ -465,16 +642,28 @@ export function WorkshopStudio() {
                         <WidgetConfigPanel
                             widget={dashboard.widgets.find(w => w.id === selectedElement)!}
                             variables={variables}
+                            ontologyObjects={workshopReadyObjects}
                             onUpdate={(config) => {
                                 const newWidgets = dashboard.widgets.map(w => w.id === selectedElement ? { ...w, config } : w);
                                 setDashboard({ ...dashboard, widgets: newWidgets });
                             }}
-                            onOpenVariableModal={() => setShowVariableModal(true)}
+                            onOpenVariableModal={(variableId?: string) => {
+                                setEditingVariableId(variableId ?? null);
+                                setShowVariableModal(true);
+                            }}
                         />
                     )}
 
                     {selectedElement?.startsWith("section_") && (
-                        <SectionConfigPanel />
+                        <SectionConfigPanel
+                            sectionName={selectedSectionSide === "left" ? "Section (left)" : "Section (right)"}
+                            layoutDirection={layoutDirection}
+                            flexValue={selectedSectionSide === "left" ? sectionFlex.left : sectionFlex.right}
+                            onLayoutDirectionChange={setLayoutDirection}
+                            onFlexValueChange={(value) => {
+                                setSectionFlex((prev) => selectedSectionSide === "left" ? { ...prev, left: value } : { ...prev, right: value });
+                            }}
+                        />
                     )}
 
                     <div style={{ padding: "12px", borderTop: "1px solid #e5e7eb", background: "#f9fafb", display: "flex", justifyContent: "center" }}>
@@ -486,17 +675,24 @@ export function WorkshopStudio() {
             </div>
 
             {/* Layout Palette (Contextual footer) */}
-            <div style={{ position: "absolute", bottom: 16, left: "50%", transform: "translateX(-50%)", background: "#ffffff", border: "1px solid #e5e7eb", borderRadius: 12, boxShadow: "0 20px 25px -5px rgba(0,0,0,0.1)", padding: "12px 24px", display: "flex", gap: 16, alignItems: "center" }}>
-                <div style={{ fontSize: 11, fontWeight: 700, color: "#6b7280", textTransform: "uppercase" }}>Try a layout template!</div>
-                <div style={{ display: "flex", gap: 8 }}>
-                    <LayoutTemplateToggle label="Details" />
-                    <LayoutTemplateToggle label="Grid" />
-                    <LayoutTemplateToggle label="Inbox" />
-                    <LayoutTemplateToggle label="Overview" />
-                    <LayoutTemplateToggle label="Settings" />
+            {showLayoutPalette ? (
+                <div style={{ position: "absolute", bottom: 16, left: "50%", transform: "translateX(-50%)", background: "#ffffff", border: "1px solid #e5e7eb", borderRadius: 12, boxShadow: "0 20px 25px -5px rgba(0,0,0,0.1)", padding: "12px 24px", display: "flex", gap: 16, alignItems: "center" }}>
+                    <div style={{ fontSize: 11, fontWeight: 700, color: "#6b7280", textTransform: "uppercase" }}>Try a layout template!</div>
+                    <div style={{ display: "flex", gap: 8 }}>
+                        {(["Details", "Grid", "Inbox", "Overview", "Settings"] as LayoutTemplateName[]).map((name) => (
+                            <LayoutTemplateToggle key={name} label={name} active={layoutTemplate === name} onClick={() => applyLayoutTemplate(name)} />
+                        ))}
+                    </div>
+                    <X size={16} color="#9ca3af" cursor="pointer" onClick={() => setShowLayoutPalette(false)} />
                 </div>
-                <X size={16} color="#9ca3af" cursor="pointer" />
-            </div>
+            ) : (
+                <button
+                    onClick={() => setShowLayoutPalette(true)}
+                    style={{ position: "absolute", bottom: 16, left: "50%", transform: "translateX(-50%)", height: 28, padding: "0 12px", borderRadius: 999, border: "1px solid #d1d5db", background: "#fff", color: "#4b5563", fontSize: 12, fontWeight: 600, cursor: "pointer" }}
+                >
+                    Show layout templates
+                </button>
+            )}
 
             {/* Modals */}
             {showWidgetModal && (
@@ -517,10 +713,17 @@ export function WorkshopStudio() {
 
             {showVariableModal && (
                 <VariableModal
+                    objectTypes={workshopReadyObjects}
+                    initialVariable={editingVariableId ? variables.find((v) => v.id === editingVariableId) ?? null : null}
                     onClose={() => setShowVariableModal(false)}
                     onSave={(v) => {
-                        setVariables([...variables, v]);
+                        setVariables((prev) => {
+                            const exists = prev.some((x) => x.id === v.id);
+                            if (exists) return prev.map((x) => x.id === v.id ? v : x);
+                            return [...prev, v];
+                        });
                         setShowVariableModal(false);
+                        setEditingVariableId(null);
                     }}
                 />
             )}
@@ -654,10 +857,31 @@ function ToggleSwitch({ on, onToggle }: { on: boolean; onToggle?: () => void }) 
     );
 }
 
-function PropertyRow({ prop, onRename }: { prop: any; onRename: (n: string) => void }) {
+function PropertyRow({
+    prop,
+    onRename,
+    onMove,
+    onRemove,
+}: {
+    prop: TableColumnConfig;
+    onRename: (n: string) => void;
+    onMove: (from: string, to: string) => void;
+    onRemove: () => void;
+}) {
     const [isHovered, setIsHovered] = useState(false);
     return (
         <div
+            draggable
+            onDragStart={(e) => {
+                e.dataTransfer.setData("text/plain", prop.id);
+                e.dataTransfer.effectAllowed = "move";
+            }}
+            onDragOver={(e) => e.preventDefault()}
+            onDrop={(e) => {
+                e.preventDefault();
+                const from = e.dataTransfer.getData("text/plain");
+                if (from && from !== prop.id) onMove(from, prop.id);
+            }}
             onMouseEnter={() => setIsHovered(true)}
             onMouseLeave={() => setIsHovered(false)}
             style={{ display: "flex", alignItems: "center", gap: 8, padding: "4px 8px", background: "#f9fafb", border: "1px solid #e5e7eb", borderRadius: 4, marginBottom: 4 }}
@@ -669,25 +893,38 @@ function PropertyRow({ prop, onRename }: { prop: any; onRename: (n: string) => v
                 style={{ flex: 1, border: "1px solid transparent", background: "transparent", fontSize: 12, color: "#111827", outline: "none", borderRadius: 2, padding: "2px 4px", borderBottom: isHovered ? "1px solid #d1d5db" : "1px solid transparent" }}
             />
             {prop.name !== prop.originalName && <span style={{ fontSize: 10, color: "#9ca3af" }}>({prop.originalName})</span>}
+            <button onClick={onRemove} style={{ border: "none", background: "transparent", color: "#ef4444", cursor: "pointer", fontSize: 14, lineHeight: 1 }}>×</button>
             <ChevronRight size={14} color="#9ca3af" />
         </div>
     );
 }
 
-function SortingConfig() {
-    const [sortedBy, setSortedBy] = useState<string | null>(null);
+function SortingConfig({
+    properties,
+    sortBy,
+    onChange,
+}: {
+    properties: TableColumnConfig[];
+    sortBy?: string;
+    onChange: (next?: string) => void;
+}) {
+    const selected = properties.find((p) => p.id === sortBy);
     return (
         <>
             <div style={{ fontSize: 11, fontWeight: 700, color: "#374151", marginBottom: 8, letterSpacing: 0.5 }}>DEFAULT SORT</div>
-            <div
-                onClick={() => setSortedBy("Item name")}
-                style={{ width: "100%", height: 32, border: "1px solid #d1d5db", borderRadius: 4, display: "flex", alignItems: "center", padding: "0 10px", justifyContent: "space-between", cursor: "pointer", fontSize: 13, color: sortedBy ? "#111827" : "#9ca3af" }}
+            <select
+                value={sortBy ?? ""}
+                onChange={(e) => onChange(e.target.value || undefined)}
+                style={{ width: "100%", height: 32, border: "1px solid #d1d5db", borderRadius: 4, padding: "0 10px", fontSize: 13, color: sortBy ? "#111827" : "#9ca3af", background: "#fff" }}
             >
-                {sortedBy ? sortedBy : "Select a property to sort by..."} <ChevronDown size={14} color="#6b7280" />
-            </div>
-            {sortedBy && (
+                <option value="">Select a property to sort by...</option>
+                {properties.map((p) => (
+                    <option key={p.id} value={p.id}>{p.name}</option>
+                ))}
+            </select>
+            {selected && (
                 <div style={{ marginTop: 8, padding: "8px", border: "1px solid #e5e7eb", borderRadius: 4, background: "#f9fafb", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-                    <div style={{ fontSize: 12, color: "#111827" }}>Item Name <span style={{ color: "#9ca3af", fontSize: 10 }}>(Title)</span></div>
+                    <div style={{ fontSize: 12, color: "#111827" }}>{selected.name}</div>
                     <div style={{ display: "flex" }}>
                         <div style={{ padding: "2px 6px", background: "#2563eb", color: "white", fontSize: 10, borderBottomLeftRadius: 4, borderTopLeftRadius: 4 }}>A-Z</div>
                         <div style={{ padding: "2px 6px", background: "white", border: "1px solid #d1d5db", borderLeft: "none", color: "#6b7280", fontSize: 10, borderTopRightRadius: 4, borderBottomRightRadius: 4 }}>Z-A</div>
@@ -711,13 +948,78 @@ function CollapsibleConfigGroup({ label, children, open = true }: { label: strin
     );
 }
 
-function WidgetConfigPanel({ widget, variables, onUpdate, onOpenVariableModal }: { widget: WidgetInstance, variables: Variable[], onUpdate: (config: any) => void, onOpenVariableModal: () => void }) {
+function WidgetConfigPanel({
+    widget,
+    variables,
+    ontologyObjects,
+    onUpdate,
+    onOpenVariableModal
+}: {
+    widget: WidgetInstance;
+    variables: Variable[];
+    ontologyObjects: OntologyObjectType[];
+    onUpdate: (config: WidgetConfig) => void;
+    onOpenVariableModal: (variableId?: string) => void;
+}) {
     const [showVarDropdown, setShowVarDropdown] = useState(false);
-    const [properties, setProperties] = useState([
-        { id: "item_name", name: "Item Name", originalName: "Title" },
-        { id: "order_id", name: "Order Id", originalName: "Order Id" },
-        { id: "assignee", name: "Assignee", originalName: "Assignee" }
-    ]);
+    const [availableProperties, setAvailableProperties] = useState<OntologyPropertySummary[]>([]);
+    const properties = widget.config.columns ?? [];
+    const hasOntologyObjects = ontologyObjects.length > 0;
+    const selectedVariable = variables.find((v) => v.objectType === widget.config.objectType);
+
+    useEffect(() => {
+        const objectType = widget.config.objectType;
+        if (!objectType) {
+            setAvailableProperties([]);
+            return;
+        }
+        fetch(`/api/ontology-admin/object-types/${encodeURIComponent(objectType)}`)
+            .then((res) => res.json())
+            .then((detail) => {
+                const list = Array.isArray(detail?.properties) ? detail.properties : [];
+                setAvailableProperties(list);
+            })
+            .catch(() => setAvailableProperties([]));
+    }, [widget.config.objectType]);
+
+    useEffect(() => {
+        if (!widget.config.objectType) return;
+        if ((widget.config.columns?.length ?? 0) > 0) return;
+        if (availableProperties.length === 0) return;
+        const cols: TableColumnConfig[] = availableProperties.slice(0, 8).map((p) => ({
+            id: p.api_name,
+            originalName: p.display_name || p.api_name,
+            name: p.display_name || p.api_name,
+        }));
+        onUpdate({ ...widget.config, columns: cols });
+    }, [availableProperties, widget.config, onUpdate]);
+
+    const moveProperty = (fromId: string, toId: string) => {
+        const fromIndex = properties.findIndex((p) => p.id === fromId);
+        const toIndex = properties.findIndex((p) => p.id === toId);
+        if (fromIndex < 0 || toIndex < 0) return;
+        const next = [...properties];
+        const [item] = next.splice(fromIndex, 1);
+        next.splice(toIndex, 0, item);
+        onUpdate({ ...widget.config, columns: next });
+    };
+
+    const addAllProperties = () => {
+        const cols: TableColumnConfig[] = availableProperties.map((p) => ({
+            id: p.api_name,
+            originalName: p.display_name || p.api_name,
+            name: p.display_name || p.api_name,
+        }));
+        onUpdate({ ...widget.config, columns: cols });
+    };
+    const addSingleProperty = (apiName: string) => {
+        if (!apiName) return;
+        if (properties.some((p) => p.id === apiName)) return;
+        const match = availableProperties.find((p) => p.api_name === apiName);
+        if (!match) return;
+        const next = [...properties, { id: match.api_name, originalName: match.display_name || match.api_name, name: match.display_name || match.api_name }];
+        onUpdate({ ...widget.config, columns: next });
+    };
 
     return (
         <>
@@ -742,6 +1044,7 @@ function WidgetConfigPanel({ widget, variables, onUpdate, onOpenVariableModal }:
 
                 <CollapsibleConfigGroup label="INPUT DATA">
                     <div style={{ fontSize: 11, fontWeight: 700, color: "#374151", marginBottom: 8, display: "flex", alignItems: "center", gap: 4 }}>OBJECT SET <HelpCircle size={10} color="#9ca3af" /></div>
+                    {!hasOntologyObjects && <div style={{ fontSize: 11, color: "#6b7280", marginBottom: 8 }}>No active indexed object types found yet.</div>}
                     <div style={{ position: "relative" }}>
                         <div
                             onClick={() => setShowVarDropdown(!showVarDropdown)}
@@ -753,6 +1056,28 @@ function WidgetConfigPanel({ widget, variables, onUpdate, onOpenVariableModal }:
                             </div>
                             <ChevronDown size={14} color="#6b7280" />
                         </div>
+                        {selectedVariable && (
+                            <div style={{ marginTop: 6, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
+                                <span style={{ fontSize: 10, color: "#6b7280" }}>
+                                    Current value: {(selectedVariable.name || selectedVariable.objectType)} ({(selectedVariable.objectType && selectedVariable.objectType === widget.config.objectType) ? "defined" : "undefined"})
+                                </span>
+                                <button
+                                    onClick={() => onOpenVariableModal(selectedVariable.id)}
+                                    style={{ fontSize: 10, color: "#1d4ed8", border: "1px solid #bfdbfe", background: "#eff6ff", borderRadius: 4, padding: "2px 6px", cursor: "pointer" }}
+                                >
+                                    Object set definition
+                                </button>
+                            </div>
+                        )}
+                        {selectedVariable && (
+                            <div style={{ marginTop: 4, fontSize: 10, color: "#6b7280", display: "flex", alignItems: "center", gap: 8 }}>
+                                <span>Current value:</span>
+                                <span style={{ fontWeight: 600, color: "#111827" }}>{widget.config.objectType ? (ontologyObjects.find(o => o.api_name === widget.config.objectType)?.index_count ?? 0) : 0}</span>
+                                <span style={{ color: "#2563eb", fontWeight: 600 }}>
+                                    {ontologyObjects.find(o => o.api_name === widget.config.objectType)?.plural_display_name || ontologyObjects.find(o => o.api_name === widget.config.objectType)?.display_name || widget.config.objectType}
+                                </span>
+                            </div>
+                        )}
 
                         {showVarDropdown && (
                             <div style={{ position: "absolute", top: "100%", left: 0, right: 0, background: "white", border: "1px solid #e5e7eb", borderRadius: 4, boxShadow: "0 10px 15px -3px rgba(0,0,0,0.1)", zIndex: 10, marginTop: 4 }}>
@@ -772,7 +1097,7 @@ function WidgetConfigPanel({ widget, variables, onUpdate, onOpenVariableModal }:
                                     {variables.map(v => (
                                         <div
                                             key={v.id}
-                                            onClick={() => { onUpdate({ ...widget.config, objectType: v.objectType! }); setShowVarDropdown(false); }}
+                                            onClick={() => { onUpdate({ ...widget.config, objectType: v.objectType || "", columns: [], sortBy: undefined }); setShowVarDropdown(false); }}
                                             style={{ display: "flex", alignItems: "center", gap: 8, padding: "6px 8px", cursor: "pointer", fontSize: 12, color: "#111827" }}
                                         >
                                             <div style={{ width: 12, height: 12, borderRadius: 2, background: "#f3f4f6", display: "flex", alignItems: "center", justifyContent: "center" }}><Box size={8} /></div> {v.name}
@@ -791,12 +1116,62 @@ function WidgetConfigPanel({ widget, variables, onUpdate, onOpenVariableModal }:
                 </CollapsibleConfigGroup>
 
                 <CollapsibleConfigGroup label="COLUMN CONFIGURATION">
-                    <button style={{ width: "100%", height: 32, background: "white", border: "1px solid #d1d5db", borderRadius: 4, fontSize: 12, fontWeight: 600, color: "#374151" }}>Add all properties</button>
+                    <div style={{ marginBottom: 8, fontSize: 11, color: "#111827", fontWeight: 600 }}>
+                        {ontologyObjects.find(o => o.api_name === widget.config.objectType)?.display_name || widget.config.objectType || "Object"}
+                    </div>
+                    <div style={{ marginBottom: 8, fontSize: 10, color: "#6b7280" }}>
+                        Columns {properties.length}
+                    </div>
+                    <select
+                        defaultValue=""
+                        onChange={(e) => {
+                            addSingleProperty(e.target.value);
+                            e.currentTarget.value = "";
+                        }}
+                        style={{ width: "100%", height: 30, marginBottom: 8, border: "1px solid #d1d5db", borderRadius: 4, padding: "0 8px", fontSize: 11, background: "#fff" }}
+                    >
+                        <option value="">+ Add column</option>
+                        {availableProperties
+                            .filter((p) => !properties.some((c) => c.id === p.api_name))
+                            .map((p) => (
+                                <option key={p.api_name} value={p.api_name}>{p.display_name || p.api_name}</option>
+                            ))}
+                    </select>
+                    <div style={{ display: "flex", gap: 8 }}>
+                        <button
+                            onClick={addAllProperties}
+                            disabled={!widget.config.objectType || availableProperties.length === 0}
+                            style={{ flex: 1, height: 30, background: "white", border: "1px solid #d1d5db", borderRadius: 4, fontSize: 11, fontWeight: 600, color: "#374151", opacity: !widget.config.objectType || availableProperties.length === 0 ? 0.5 : 1, cursor: !widget.config.objectType || availableProperties.length === 0 ? "not-allowed" : "pointer" }}
+                        >
+                            Add all properties
+                        </button>
+                        <button
+                            onClick={() => onUpdate({ ...widget.config, columns: [] })}
+                            style={{ flex: 1, height: 30, background: "white", border: "1px solid #d1d5db", borderRadius: 4, fontSize: 11, fontWeight: 600, color: "#6b7280", cursor: "pointer" }}
+                        >
+                            Remove all properties
+                        </button>
+                    </div>
                     <div style={{ marginTop: 12, display: "flex", flexDirection: "column", gap: 2 }}>
+                        {properties.length === 0 && (
+                            <div style={{ fontSize: 11, color: "#6b7280" }}>
+                                Select an object set and click "Add all properties".
+                            </div>
+                        )}
                         {properties.map((p, i) => (
-                            <PropertyRow key={p.id} prop={p} onRename={(newName) => {
-                                setProperties(properties.map((pp, idx) => idx === i ? { ...pp, name: newName } : pp));
-                            }} />
+                            <PropertyRow
+                                key={p.id}
+                                prop={p}
+                                onMove={moveProperty}
+                                onRename={(newName) => {
+                                    const next = properties.map((pp, idx) => idx === i ? { ...pp, name: newName } : pp);
+                                    onUpdate({ ...widget.config, columns: next });
+                                }}
+                                onRemove={() => {
+                                    const next = properties.filter((pp) => pp.id !== p.id);
+                                    onUpdate({ ...widget.config, columns: next, sortBy: widget.config.sortBy === p.id ? undefined : widget.config.sortBy });
+                                }}
+                            />
                         ))}
                     </div>
                 </CollapsibleConfigGroup>
@@ -810,34 +1185,48 @@ function WidgetConfigPanel({ widget, variables, onUpdate, onOpenVariableModal }:
                 </CollapsibleConfigGroup>
 
                 <CollapsibleConfigGroup label="DISPLAY & FORMATTING">
-                    <SortingConfig />
+                    <SortingConfig
+                        properties={properties}
+                        sortBy={widget.config.sortBy}
+                        onChange={(sortBy) => onUpdate({ ...widget.config, sortBy })}
+                    />
                 </CollapsibleConfigGroup>
             </div>
         </>
     );
 }
 
-function VariableModal({ onClose, onSave }: { onClose: () => void, onSave: (v: Variable) => void }) {
+function VariableModal({
+    objectTypes,
+    initialVariable,
+    onClose,
+    onSave
+}: {
+    objectTypes: OntologyObjectType[];
+    initialVariable?: Variable | null;
+    onClose: () => void;
+    onSave: (v: Variable) => void;
+}) {
     const [step, setStep] = useState(1);
-    const [name, setName] = useState("Object Set");
+    const [name, setName] = useState(initialVariable?.name || "Object Set");
     const [selectedObject, setSelectedObject] = useState<any>(null);
     const [searchTerm, setSearchTerm] = useState("");
     const [isDropdownOpen, setIsDropdownOpen] = useState(false);
-    const [objectTypes, setObjectTypes] = useState<any[]>([]);
+    const [hoveredObject, setHoveredObject] = useState<any>(null);
 
     useEffect(() => {
-        fetch("/api/ontology-admin/object-types")
-            .then(res => res.json())
-            .then(data => {
-                setObjectTypes(data || []);
-            })
-            .catch(p => {
-                console.error(p);
-                setObjectTypes([]);
-            });
-    }, []);
-
-    const [hoveredObject, setHoveredObject] = useState<any>(null);
+        if (!initialVariable) return;
+        setName(initialVariable.name || "Object Set");
+        if (initialVariable.objectType) {
+            const ot = objectTypes.find((o) => o.api_name === initialVariable.objectType);
+            if (ot) {
+                setSelectedObject({
+                    id: ot.api_name,
+                    name: ot.plural_display_name || ot.display_name || ot.api_name,
+                });
+            }
+        }
+    }, [initialVariable, objectTypes]);
 
     return (
         <div style={{ position: "fixed", inset: 0, zIndex: 1000, pointerEvents: "none", display: "flex", justifyContent: "center", alignItems: "center" }}>
@@ -891,15 +1280,15 @@ function VariableModal({ onClose, onSave }: { onClose: () => void, onSave: (v: V
                                         </div>
                                         <div style={{ padding: "12px 8px", flex: 1, overflowY: "auto" }}>
                                             <div style={{ fontSize: 11, fontWeight: 700, color: "#9ca3af", textTransform: "uppercase", marginBottom: 8, paddingLeft: 4 }}>Search Results</div>
-                                            {objectTypes.length === 0 && <div style={{ fontSize: 12, color: "#6b7280", paddingLeft: 4 }}>Loading object types...</div>}
-                                            {objectTypes.filter(ot => (ot.pluralName?.toLowerCase() || ot.apiName?.toLowerCase())?.includes(searchTerm.toLowerCase())).map(ot => (
+                                            {objectTypes.length === 0 && <div style={{ fontSize: 12, color: "#6b7280", paddingLeft: 4 }}>No indexed object types available.</div>}
+                                            {objectTypes.filter(ot => ((ot.plural_display_name || ot.display_name || ot.api_name).toLowerCase()).includes(searchTerm.toLowerCase())).map(ot => (
                                                 <div
-                                                    key={ot.id}
-                                                    onMouseEnter={() => setHoveredObject({ name: ot.pluralName || ot.apiName, id: ot.id, type: "1.5K objects", deps: "3 dependents" })}
-                                                    style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 12px", cursor: "pointer", borderRadius: 4, background: hoveredObject?.id === ot.id ? "#f3f4f6" : "transparent" }}
+                                                    key={ot.api_name}
+                                                    onMouseEnter={() => setHoveredObject({ name: ot.plural_display_name || ot.display_name || ot.api_name, id: ot.api_name, type: `${ot.index_count ?? 0} objects`, deps: "Ready for Workshop" })}
+                                                    style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 12px", cursor: "pointer", borderRadius: 4, background: hoveredObject?.id === ot.api_name ? "#f3f4f6" : "transparent" }}
                                                 >
                                                     <div style={{ width: 16, height: 16, background: "#4f46e5", borderRadius: 3, display: "flex", alignItems: "center", justifyContent: "center" }}><Box size={10} color="white" /></div>
-                                                    <div style={{ fontSize: 13, color: "#111827", fontWeight: 500, flex: 1 }}>{ot.pluralName || ot.apiName}</div>
+                                                    <div style={{ fontSize: 13, color: "#111827", fontWeight: 500, flex: 1 }}>{ot.plural_display_name || ot.display_name || ot.api_name}</div>
                                                     <div style={{ width: 10, height: 14, background: "#d1d5db", borderRadius: 2 }} />
                                                 </div>
                                             ))}
@@ -968,7 +1357,7 @@ function VariableModal({ onClose, onSave }: { onClose: () => void, onSave: (v: V
                                     </div>
 
                                     <button
-                                        onClick={() => onSave({ id: Date.now().toString(), name, type: "object-set", objectType: selectedObject.id })}
+                                        onClick={() => onSave({ id: initialVariable?.id || Date.now().toString(), name, type: "object-set", objectType: selectedObject.id })}
                                         style={{ marginTop: 32, width: "100%", height: 32, background: "#2563eb", color: "white", border: "none", borderRadius: 4, fontSize: 12, fontWeight: 600, cursor: "pointer" }}
                                     >
                                         Save changes
@@ -1041,16 +1430,28 @@ function ColorSquare({ color, isSelected, onClick }: { color: string, label: str
     );
 }
 
-function LayoutTemplateToggle({ label }: { label: string }) {
+function LayoutTemplateToggle({ label, active, onClick }: { label: string; active?: boolean; onClick: () => void }) {
     return (
-        <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 4 }}>
-            <div style={{ width: 40, height: 32, background: "#f3f4f6", border: "1px solid #e5e7eb", borderRadius: 4 }}></div>
-            <div style={{ fontSize: 10, color: "#6b7280" }}>{label}</div>
+        <div onClick={onClick} style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 4, cursor: "pointer" }}>
+            <div style={{ width: 40, height: 32, background: active ? "#eff6ff" : "#f3f4f6", border: active ? "1px solid #2563eb" : "1px solid #e5e7eb", borderRadius: 4 }}></div>
+            <div style={{ fontSize: 10, color: active ? "#1d4ed8" : "#6b7280", fontWeight: active ? 700 : 500 }}>{label}</div>
         </div>
     );
 }
 
-function SectionConfigPanel() {
+function SectionConfigPanel({
+    sectionName,
+    layoutDirection,
+    flexValue,
+    onLayoutDirectionChange,
+    onFlexValueChange,
+}: {
+    sectionName: string;
+    layoutDirection: "columns" | "rows";
+    flexValue: number;
+    onLayoutDirectionChange: (next: "columns" | "rows") => void;
+    onFlexValueChange: (next: number) => void;
+}) {
     return (
         <>
             <div style={{ padding: "12px 16px", borderBottom: "1px solid #e5e7eb", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
@@ -1059,18 +1460,22 @@ function SectionConfigPanel() {
             </div>
             <div style={{ flex: 1, overflowY: "auto", padding: "16px" }}>
                 <ConfigGroup label="SECTION NAME">
-                    <input style={{ width: "100%", padding: "8px 12px", border: "1px solid #d1d5db", borderRadius: 6, fontSize: 13, color: "#111827" }} defaultValue="Section" />
+                    <input style={{ width: "100%", padding: "8px 12px", border: "1px solid #d1d5db", borderRadius: 6, fontSize: 13, color: "#111827" }} value={sectionName} readOnly />
                 </ConfigGroup>
 
                 <ConfigGroup label="DIMENSIONS">
                     <div style={{ fontSize: 11, color: "#4b5563", marginBottom: 8 }}>COLUMN WIDTH</div>
                     <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
                         <div style={{ display: "flex", background: "#f3f4f6", borderRadius: 6, padding: 2, flex: 1 }}>
-                            <button style={{ flex: 1, height: 28, background: "transparent", border: "none", fontSize: 12, fontWeight: 500, color: "#6b7280" }}>Absolute</button>
-                            <button style={{ flex: 1, height: 28, background: "#ffffff", border: "none", borderRadius: 4, fontSize: 12, fontWeight: 600, color: "#111827", boxShadow: "0 1px 2px rgba(0,0,0,0.05)" }}>Flex</button>
+                            <button onClick={() => onLayoutDirectionChange("rows")} style={{ flex: 1, height: 28, background: layoutDirection === "rows" ? "#ffffff" : "transparent", border: "none", borderRadius: 4, fontSize: 12, fontWeight: 500, color: "#6b7280" }}>Absolute</button>
+                            <button onClick={() => onLayoutDirectionChange("columns")} style={{ flex: 1, height: 28, background: layoutDirection === "columns" ? "#ffffff" : "transparent", border: "none", borderRadius: 4, fontSize: 12, fontWeight: 600, color: "#111827", boxShadow: layoutDirection === "columns" ? "0 1px 2px rgba(0,0,0,0.05)" : "none" }}>Flex</button>
                         </div>
                         <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
-                            <input style={{ width: 60, height: 32, border: "1px solid #d1d5db", borderRadius: 6, fontSize: 13, textAlign: "center", color: "#111827" }} defaultValue="2" />
+                            <input
+                                style={{ width: 60, height: 32, border: "1px solid #d1d5db", borderRadius: 6, fontSize: 13, textAlign: "center", color: "#111827" }}
+                                value={String(flexValue)}
+                                onChange={(e) => onFlexValueChange(Math.max(0.3, Number(e.target.value) || 1))}
+                            />
                             <div style={{ fontSize: 13, color: "#6b7280" }}>flex</div>
                         </div>
                     </div>
